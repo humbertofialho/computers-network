@@ -7,8 +7,9 @@
 # -----------            Rafael Carneiro de Castro  (2013030210) ------------ #
 # --------------------------------------------------------------------------- #
 
-# librarys
+# libraries
 import sys
+import binascii
 import socket as sck
 
 
@@ -67,25 +68,14 @@ def initialize_client():
     print('Done')
 
 
-# codification
-def encrypt(number):
-    binary = bin(number)
-    binary = binary[2:len(binary)]
-    binary_int = int(binary)
-
-    # ascii = ord('a')
-    # bin(ascii)
-    # hex(110)
-    # int('d', 16)
-
-    return binary_int
+# encrypt
+def encode16(data):
+    return binascii.hexlify(data.encode('UTF-8'))
 
 
-def decrypt(number):
-    decimal = int(number)
-    decimal = decimal[2:len(decimal)]
-    decimal_int = int(decimal)
-    return decimal_int
+# decrypt
+def decode16(data):
+    return binascii.unhexlify(data).decode('UTF-8')
 
 
 # framework
