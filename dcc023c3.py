@@ -9,8 +9,15 @@
 
 # libraries
 import sys
+import ctypes
 import binascii
 import socket as sck
+
+SYNC = 'dcc023c3'
+CONFIRMATION = {
+    'id': 0,
+    'confirmed': False
+}
 
 
 # start the code as server
@@ -31,7 +38,7 @@ def initialize_server():
     connection = s.accept()[0]
 
     print('Esperando dados:')
-    data1 = connection.recv(4)
+    data1 = connection.recv(2)
     print(data1)
     print(type(data1))
 
@@ -53,16 +60,8 @@ def initialize_client():
     s = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
     s.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     s.connect((ip, port))
-    print('Mandando')
-    resp = s.send('abcdefgh'.encode())
-    print('RESPOSTA:')
-    print(resp)
 
-
-    # print('Mandando2')
-    # resp = s.send('efgh'.encode())
-    # print('RESPOSTA2:')
-    # print(resp)
+    send_data(s, input_file_name)
 
     s.close()
     print('Done')
@@ -70,32 +69,52 @@ def initialize_client():
 
 # encrypt
 def encode16(data):
-    return binascii.hexlify(data.encode('UTF-8'))
+    return binascii.hexlify(data.encode())
 
 
 # decrypt
 def decode16(data):
-    return binascii.unhexlify(data).decode('UTF-8')
+    return binascii.unhexlify(data).decode()
 
 
-# framework
-def framework():
-    pass
+# function to send data from file
+def send_data(connection, file_name):
+    with open(file_name) as file:
+        data = SYNC + SYNC
+        # TODO checar tamanho do dado passando por parametro no readline
+        file_line = file.readline()
+
+        data += get_length(file_line) + get_id()
+        print(data)
+
+        # connection.sendto(sck.htons(ctypes.c_uint16(3).value), 1)
+        connection.send(SYNC.encode())
+        connection.send(SYNC.encode())
+
+        print('Send data from file', file_name)
+        # TODO codificar antes de mandar
 
 
-# error detection
-def error_detection():
-    pass
+        # print('Mandando2')
+        # resp = connection.send('efgh'.encode())
+        # print('RESPOSTA2:')
+        # print(resp)
 
 
-# sequencing
-def sequencing():
-    pass
+def number_to_limited_hex(number, length):
+    data = hex(number)[2:]
+    while len(data) < length:
+        data = '0' + data
+
+    return data
 
 
-#  retransmission
-def retransmission():
-    pass
+def get_length(data):
+    return number_to_limited_hex(len(data), 4)
+
+
+def get_id():
+    return number_to_limited_hex(CONFIRMATION['id'], 2)
 
 
 def receive():
