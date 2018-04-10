@@ -9,11 +9,11 @@
 
 # libraries
 import sys
-import ctypes
+import struct
 import binascii
 import socket as sck
 
-SYNC = 'dcc023c3'
+SYNC = b'dcc023c2'
 CONFIRMATION = {
     'id': 0,
     'confirmed': False
@@ -37,14 +37,8 @@ def initialize_server():
     print('Server running on port', port)
     connection = s.accept()[0]
 
-    print('Esperando dados:')
-    data1 = connection.recv(2)
-    print(data1)
-    print(type(data1))
-
-    print('Esperando dados2:')
-    data2 = connection.recv(4)
-    print(data2)
+    receive_data(connection, output_file_name)
+    send_data(connection, input_file_name)
 
     return
 
@@ -57,19 +51,20 @@ def initialize_client():
     input_file_name = sys.argv[3]
     output_file_name = sys.argv[4]
 
-    s = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
-    s.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
-    s.connect((ip, port))
+    connection = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
+    connection.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
+    connection.connect((ip, port))
 
-    send_data(s, input_file_name)
+    receive_data(connection, output_file_name)
+    send_data(connection, input_file_name)
 
-    s.close()
+    connection.close()
     print('Done')
 
 
 # encrypt
 def encode16(data):
-    return binascii.hexlify(data.encode())
+    return binascii.hexlify(data)
 
 
 # decrypt
@@ -80,20 +75,37 @@ def decode16(data):
 # function to send data from file
 def send_data(connection, file_name):
     with open(file_name) as file:
-        data = SYNC + SYNC
         # TODO checar tamanho do dado passando por parametro no readline
         file_line = file.readline()
 
-        data += get_length(file_line) + get_id()
-        print(data)
+        # TODO remover
+        # data += get_length(file_line) + get_id()
+        # print(data)
+        print(file_line)
+
+        # TODO para mandar:
+        # length: struct.pack('!H', length)
+        # data: struct.pack('!3s', 'asd'.encode())
+        # both: result = struct.pack('!H3s', length, 'asd'.encode())
+        # send: sck.send(encode16(result))
+        # length = len(file_line)
+        # fmt = '!16sH{length}s'.format(length=length)
+        # data = struct.pack(fmt, 2*SYNC, length, file_line.encode())
+        # TODO codificar antes de mandar
+        length = len(file_line)
+        fmt = '!H{length}s'.format(length=length)
+        data = struct.pack(fmt, length, file_line.encode())
+        connection.send(data)
+
+        # TODO descobrir jeito certo de mandar SYNC
+        # TODO tentar transformar em inteiro e usar o struct.pack para mandar o inteiro
+        # connection.send(SYNC)
 
         # connection.sendto(sck.htons(ctypes.c_uint16(3).value), 1)
-        connection.send(SYNC.encode())
-        connection.send(SYNC.encode())
+        # connection.send(SYNC.encode())
+        # connection.send(SYNC.encode())
 
         print('Send data from file', file_name)
-        # TODO codificar antes de mandar
-
 
         # print('Mandando2')
         # resp = connection.send('efgh'.encode())
@@ -101,23 +113,34 @@ def send_data(connection, file_name):
         # print(resp)
 
 
-def number_to_limited_hex(number, length):
-    data = hex(number)[2:]
-    while len(data) < length:
-        data = '0' + data
+# def number_to_limited_hex(number, length):
+#     data = hex(number)[2:]
+#     while len(data) < length:
+#         data = '0' + data
+#
+#     return data
+#
+#
+# def get_length(data):
+#     return number_to_limited_hex(len(data), 4)
+#
+#
+# def get_id():
+#     return number_to_limited_hex(CONFIRMATION['id'], 2)
 
-    return data
 
+def receive_data(connection, file_name):
+    print('Esperando dados:')
+    data1 = connection.recv(2)
+    print(data1)
+    print(type(data1))
+    # ler o htons: struct.unpack('!H', data1)[0]
 
-def get_length(data):
-    return number_to_limited_hex(len(data), 4)
+    print('Esperando dados2:')
+    data2 = connection.recv(4)
+    print(data2)
 
-
-def get_id():
-    return number_to_limited_hex(CONFIRMATION['id'], 2)
-
-
-def receive():
+    print('Received data saved on file', file_name)
     # while True:
     #     data = recv()
     #     if data != SYNC:
@@ -142,7 +165,7 @@ def receive():
     #     print_file('file', body)
     #
     # receive()
-    pass
+    # pass
 
 
 # main
@@ -156,5 +179,6 @@ def main():
 
 
 # --------------------------------------------------------------------------- #
-if __name__ == '__main__': # calling main function
+# calling main function
+if __name__ == '__main__':
     main()
