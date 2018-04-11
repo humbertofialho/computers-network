@@ -13,6 +13,7 @@ import struct
 import binascii
 import socket as sck
 
+MAX_LENGTH = 65535
 SYNC = b'dcc023c2'
 CONFIRMATION = {
     'id': 0,
@@ -75,8 +76,7 @@ def decode16(data):
 # function to send data from file
 def send_data(connection, file_name):
     with open(file_name) as file:
-        # TODO checar tamanho do dado passando por parametro no readline
-        file_line = file.readline()
+        file_line = file.readline(MAX_LENGTH)
 
         # TODO remover
         # data += get_length(file_line) + get_id()
@@ -91,19 +91,15 @@ def send_data(connection, file_name):
         # length = len(file_line)
         # fmt = '!16sH{length}s'.format(length=length)
         # data = struct.pack(fmt, 2*SYNC, length, file_line.encode())
+        # TODO descobrir se é jeito certo de mandar SYNC
+        sentinel = struct.pack('!LL', int(SYNC, base=16), int(SYNC, base=16))
+        connection.send(sentinel)
+
         # TODO codificar antes de mandar
         length = len(file_line)
         fmt = '!H{length}s'.format(length=length)
         data = struct.pack(fmt, length, file_line.encode())
         connection.send(data)
-
-        # TODO descobrir jeito certo de mandar SYNC
-        # TODO tentar transformar em inteiro e usar o struct.pack para mandar o inteiro
-        # connection.send(SYNC)
-
-        # connection.sendto(sck.htons(ctypes.c_uint16(3).value), 1)
-        # connection.send(SYNC.encode())
-        # connection.send(SYNC.encode())
 
         print('Send data from file', file_name)
 
@@ -113,32 +109,16 @@ def send_data(connection, file_name):
         # print(resp)
 
 
-# def number_to_limited_hex(number, length):
-#     data = hex(number)[2:]
-#     while len(data) < length:
-#         data = '0' + data
-#
-#     return data
-#
-#
-# def get_length(data):
-#     return number_to_limited_hex(len(data), 4)
-#
-#
-# def get_id():
-#     return number_to_limited_hex(CONFIRMATION['id'], 2)
-
-
 def receive_data(connection, file_name):
     print('Esperando dados:')
     data1 = connection.recv(2)
-    print(data1)
-    print(type(data1))
+    test_length = struct.unpack('!H', data1)[0]
+    print(test_length)
     # ler o htons: struct.unpack('!H', data1)[0]
 
     print('Esperando dados2:')
-    data2 = connection.recv(4)
-    print(data2)
+    data2 = connection.recv(test_length)
+    print(data2.decode())
 
     print('Received data saved on file', file_name)
     # while True:
