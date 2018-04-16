@@ -15,10 +15,33 @@ import socket as sck
 
 MAX_LENGTH = 65535
 SYNC = b'dcc023c2'
-CONFIRMATION = {
-    'id': 0,
-    'confirmed': False
-}
+
+
+class DataTransfer:
+    id = 0
+
+    def __init__(self, data='', flags=0):
+        self.data = data
+        self.confirmed = False
+        self.flags = flags
+
+    def get_length(self):
+        return len(self.data)
+
+    # encrypt
+    def encode16(self):
+        return binascii.hexlify(self.data)
+
+    # decrypt
+    def decode16(self):
+        return binascii.unhexlify(self.data).decode()
+
+    def checksum(self):
+        # TODO implementar
+        return 0
+
+
+data_to_send = DataTransfer()
 
 
 # start the code as server
@@ -38,6 +61,7 @@ def initialize_server():
     print('Server running on port', port)
     connection = s.accept()[0]
 
+    # TODO multithread
     receive_data(connection, output_file_name)
     send_data(connection, input_file_name)
 
@@ -56,6 +80,7 @@ def initialize_client():
     connection.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     connection.connect((ip, port))
 
+    # TODO multithread
     receive_data(connection, output_file_name)
     send_data(connection, input_file_name)
 
@@ -63,25 +88,11 @@ def initialize_client():
     print('Done')
 
 
-# encrypt
-def encode16(data):
-    return binascii.hexlify(data)
-
-
-# decrypt
-def decode16(data):
-    return binascii.unhexlify(data).decode()
-
-
 # function to send data from file
 def send_data(connection, file_name):
     with open(file_name) as file:
         file_line = file.readline(MAX_LENGTH)
-
-        # TODO remover
-        # data += get_length(file_line) + get_id()
-        # print(data)
-        print(file_line)
+        data_to_send.data = file_line
 
         # TODO para mandar:
         # length: struct.pack('!H', length)
@@ -95,13 +106,16 @@ def send_data(connection, file_name):
         sentinel = struct.pack('!LL', int(SYNC, base=16), int(SYNC, base=16))
         connection.send(sentinel)
 
-        # TODO codificar antes de mandar
-        length = len(file_line)
-        fmt = '!H{length}s'.format(length=length)
-        data = struct.pack(fmt, length, file_line.encode())
+        # TODO codificar antes de mandar e adicionar outros campos
+        fmt = '!HHBB{length}s'.format(length=data_to_send.get_length())
+        data = struct.pack(fmt, data_to_send.get_length(), data_to_send.checksum(), data_to_send.id,
+                           data_to_send.flags, data_to_send.data.encode())
         connection.send(data)
 
-        print('Send data from file', file_name)
+        print('Data sent from file', file_name)
+        # TODO timeout do send
+        while not data_to_send.confirmed:
+            pass
 
         # print('Mandando2')
         # resp = connection.send('efgh'.encode())

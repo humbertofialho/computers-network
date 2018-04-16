@@ -84,6 +84,22 @@ int main(int argc, char *argv[]) {
 	int received_size = ntohs(size);
 	printf("Received size: %d\n", received_size);
 
+	uint16_t checksum;
+	count = recv(s, &checksum, sizeof(checksum), 0);
+	if(count != sizeof(checksum)) logexit("receive");
+	int received_checksum = ntohs(checksum);
+	printf("Received checksum: %d\n", received_checksum);
+
+	char id;
+	count = recv(s, &id, sizeof(id), 0);
+	if(count != sizeof(id)) logexit("receive");
+	printf("Received ID: %d\n", (int)id);
+
+	char flags;
+	count = recv(s, &flags, sizeof(flags), 0);
+	if(count != sizeof(flags)) logexit("receive");
+	printf("Received flags: %d\n", (int)flags);
+
 	char *string = malloc(received_size);
 	if(!string) logexit("malloc");
 	count = recv(s, string, received_size, 0);
