@@ -62,52 +62,40 @@ int main(int argc, char *argv[]) {
 	count = send(s, to_send, strlen(to_send), 0);
 	if(count != strlen(to_send)) logexit("send");
 
-	uint8_t teste;
-	count = recv(s, &teste, sizeof(teste), 0);
-	if(count != sizeof(teste)) logexit("receive");
-	printf("Received TESTE: %d\n", teste);
-
-	uint32_t sync;
+	char sync[8];
 	count = recv(s, &sync, sizeof(sync), 0);
-	sync = ntohl(sync);
-	if(sync == 0xdcc023c2) printf("Sync is SYNC\n");
-	printf("Received sync: %u\n", sync);
-	printf("Received sync x: %x\n", sync);
+	if(count != sizeof(sync)) logexit("receive");
+	printf("Received sync: %s\n", sync);
 
 	count = recv(s, &sync, sizeof(sync), 0);
-	sync = ntohl(sync);
-	if(sync == 0xdcc023c2) printf("Sync is SYNC\n");
-	printf("Received sync: %u\n", sync);
-	printf("Received sync x: %x\n", sync);
+	if(count != sizeof(sync)) logexit("receive");
+	printf("Received sync: %s\n", sync);
 
-	count = recv(s, &size, sizeof(size), 0);
-	if(count != sizeof(size)) logexit("receive");
-	int received_size = ntohs(size);
-	printf("Received size: %d\n", received_size);
+	char data_size[4];
+	count = recv(s, &data_size, sizeof(data_size), 0);
+	if(count != sizeof(data_size)) logexit("receive");
+	printf("Received size: %s\n", data_size);
 
-	uint16_t checksum;
+	char checksum[4];
 	count = recv(s, &checksum, sizeof(checksum), 0);
 	if(count != sizeof(checksum)) logexit("receive");
-	int received_checksum = ntohs(checksum);
-	printf("Received checksum: %d\n", received_checksum);
+	printf("Received checksum: %s\n", checksum);
 
-	char id;
+	char id[2];
 	count = recv(s, &id, sizeof(id), 0);
 	if(count != sizeof(id)) logexit("receive");
-	printf("Received ID: %d\n", (int)id);
+	printf("Received ID: %s\n", id);
 
-	char flags;
+	char flags[2];
 	count = recv(s, &flags, sizeof(flags), 0);
 	if(count != sizeof(flags)) logexit("receive");
-	printf("Received flags: %d\n", (int)flags);
+	printf("Received flags: %s\n", flags);
 
-	char *string = malloc(received_size);
+	char *string = malloc(40);
 	if(!string) logexit("malloc");
-	count = recv(s, string, received_size, 0);
-	if(count != received_size) logexit("receive");
+	count = recv(s, string, 40, 0);
+	if(count != 40) logexit("receive");
 	printf("Received data: %s\n", string);
-
-	while(1) {}
 
 	close(s);
 	exit(EXIT_SUCCESS);

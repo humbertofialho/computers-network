@@ -16,37 +16,58 @@ import datetime
 import socket as sck
 
 MAX_LENGTH = 65535
-SYNC = b'dcc023c2'
+SYNC = 'dcc023c2'
 
 
 class DataTransfer:
-    id = 0
-
-    def __init__(self, data='', flags=0):
+    def __init__(self, data='', id=1, flags=0):
         self.data = data
         self.confirmed = False
+        self.id = id
         self.flags = flags
 
-    def get_length(self):
-        return len(self.data)
+    def prepare_for_new_data(self):
+        self.confirmed = False
+        self.id = 1 if self.id == 0 else 0
+
+    @staticmethod
+    def _format_numbers(number, is_2_bytes=True):
+        pattern = '{:04x}' if is_2_bytes else '{:02x}'
+        return pattern.format(number)
+
+    def get_formatted_length(self):
+        return self._format_numbers(len(self.data))
+
+    def checksum(self):
+        # TODO implementar
+        return self._format_numbers(0)
+
+    def get_formatted_id(self):
+        return self._format_numbers(self.id, False)
+
+    def get_formatted_flags(self):
+        return self._format_numbers(self.flags, False)
 
     # encrypt
     def encode16(self):
-        # transformar o dado para hexa, converter os caracteres da
-        # transformação segundo a ASCII, dobrando a quantidade de dados
         return binascii.hexlify(self.data.encode())
 
     # decrypt
     def decode16(self):
         return binascii.unhexlify(self.data).decode()
 
-    def checksum(self):
-        # TODO implementar
-        return 0
+    def get_frame(self):
+        length = self.get_formatted_length()
+        checksum = self.checksum()
+        id = self.get_formatted_id()
+        flags = self.get_formatted_flags()
+        encoded_data = self.encode16()
+        header = (length + checksum + id + flags).encode()
+        return header + encoded_data
 
 
 data_to_send = DataTransfer()
-data_to_receive = DataTransfer(flags=1)
+data_to_receive = DataTransfer(id=0)
 
 
 class AckTimeoutError(Exception):
@@ -75,7 +96,7 @@ def initialize_server():
     connection = s.accept()[0]
 
     # TODO multithread
-    receive_data(connection, output_file_name)
+    # receive_data(connection, output_file_name)
     send_data(connection, input_file_name)
 
     return
@@ -95,7 +116,7 @@ def initialize_client():
 
     # TODO multithread
     receive_data(connection, output_file_name)
-    send_data(connection, input_file_name)
+    # send_data(connection, input_file_name)
 
     connection.close()
     print('Done')
@@ -108,26 +129,11 @@ def send_data(connection, file_name):
 
         while file_line:
             data_to_send.data = file_line
+            data_to_send.prepare_for_new_data()
 
-            # TODO remover, apenas teste de tipo para encode
-            connection.send('6'.encode())
-            # TODO para mandar:
-            # length: struct.pack('!H', length)
-            # data: struct.pack('!3s', 'asd'.encode())
-            # both: result = struct.pack('!H3s', length, 'asd'.encode())
-            # send: sck.send(encode16(result))
-            # length = len(file_line)
-            # fmt = '!16sH{length}s'.format(length=length)
-            # data = struct.pack(fmt, 2*SYNC, length, file_line.encode())
-            # TODO descobrir se é jeito certo de mandar SYNC
-            sentinel = struct.pack('!LL', int(SYNC, base=16), int(SYNC, base=16))
-            connection.send(sentinel)
-
-            # TODO codificar antes de mandar e adicionar outros campos
-            fmt = '!HHBB{length}s'.format(length=data_to_send.get_length())
-            data = struct.pack(fmt, data_to_send.get_length(), data_to_send.checksum(), data_to_send.id,
-                               data_to_send.flags, data_to_send.encode16())
-            connection.send(data)
+            connection.send(SYNC.encode())
+            connection.send(SYNC.encode())
+            connection.send(data_to_send.get_frame())
             print(datetime.datetime.now(), 'Data sent from file', file_name)
 
             signal.signal(signal.SIGALRM, handle_ack_timeout)
@@ -143,17 +149,48 @@ def send_data(connection, file_name):
 
 
 def receive_data(connection, file_name):
-    print('Esperando dados:')
-    data1 = connection.recv(2)
-    test_length = struct.unpack('!H', data1)[0]
-    print(test_length)
-    # ler o htons: struct.unpack('!H', data1)[0]
+    while True:
+        print(datetime.datetime.now(), 'Waiting for data')
 
-    print('Esperando dados2:')
-    data2 = connection.recv(test_length)
-    print(data2.decode())
+        sync = connection.recv(8)
+        if sync.decode() != SYNC:
+            print(datetime.datetime.now(), 'Resynchronizing')
+            continue
 
-    print('Received data saved on file', file_name)
+        sync = connection.recv(8)
+        if sync.decode() != SYNC:
+            print(datetime.datetime.now(), 'Resynchronizing')
+            continue
+
+        length = connection.recv(4)
+        data_to_receive.length = int(length.decode(), base=16)
+
+        checksum = connection.recv(4)
+        data_to_receive.checksum = int(checksum.decode(), base=16)
+
+        id = connection.recv(2)
+        data_to_receive.id = int(id.decode(), base=16)
+
+        flags = connection.recv(2)
+        data_to_receive.flags = int(flags.decode(), base=16)
+
+        data = connection.recv(2*length)
+        print('DATA:', data)
+
+        if flags == 128:
+            # tratar ACK recebido
+            pass
+
+    # data1 = connection.recv(2)
+    # test_length = struct.unpack('!H', data1)[0]
+    # print(test_length)
+    # # ler o htons: struct.unpack('!H', data1)[0]
+    #
+    # print('Esperando dados2:')
+    # data2 = connection.recv(test_length)
+    # print(data2.decode())
+    #
+    # print('Received data saved on file', file_name)
     # while True:
     #     data = recv()
     #     if data != SYNC:
