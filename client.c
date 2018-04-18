@@ -62,6 +62,11 @@ int main(int argc, char *argv[]) {
 	count = send(s, to_send, strlen(to_send), 0);
 	if(count != strlen(to_send)) logexit("send");
 
+	uint8_t teste;
+	count = recv(s, &teste, sizeof(teste), 0);
+	if(count != sizeof(teste)) logexit("receive");
+	printf("Received TESTE: %d\n", teste);
+
 	uint32_t sync;
 	count = recv(s, &sync, sizeof(sync), 0);
 	sync = ntohl(sync);
@@ -74,10 +79,6 @@ int main(int argc, char *argv[]) {
 	if(sync == 0xdcc023c2) printf("Sync is SYNC\n");
 	printf("Received sync: %u\n", sync);
 	printf("Received sync x: %x\n", sync);
-	// char sync[4];
-	// count = recv(s, &sync, sizeof(sync), 0);
-	// if(sync == 0xdcc023c2) printf("Sync is SYNC\n");
-	// printf("Received sync: %x\n", atoi(sync));
 
 	count = recv(s, &size, sizeof(size), 0);
 	if(count != sizeof(size)) logexit("receive");
@@ -105,6 +106,8 @@ int main(int argc, char *argv[]) {
 	count = recv(s, string, received_size, 0);
 	if(count != received_size) logexit("receive");
 	printf("Received data: %s\n", string);
+
+	while(1) {}
 
 	close(s);
 	exit(EXIT_SUCCESS);

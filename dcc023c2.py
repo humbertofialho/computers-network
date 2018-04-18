@@ -10,7 +10,9 @@
 # libraries
 import sys
 import struct
+import signal
 import binascii
+import datetime
 import socket as sck
 
 MAX_LENGTH = 65535
@@ -30,7 +32,9 @@ class DataTransfer:
 
     # encrypt
     def encode16(self):
-        return binascii.hexlify(self.data)
+        # transformar o dado para hexa, converter os caracteres da
+        # transformação segundo a ASCII, dobrando a quantidade de dados
+        return binascii.hexlify(self.data.encode())
 
     # decrypt
     def decode16(self):
@@ -42,6 +46,15 @@ class DataTransfer:
 
 
 data_to_send = DataTransfer()
+data_to_receive = DataTransfer(flags=1)
+
+
+class AckTimeoutError(Exception):
+    pass
+
+
+def handle_ack_timeout(*_):
+    raise AckTimeoutError()
 
 
 # start the code as server
@@ -58,7 +71,7 @@ def initialize_server():
     s.bind((ip, port))
     s.listen(1)
 
-    print('Server running on port', port)
+    print(datetime.datetime.now(), 'Server running on port', port)
     connection = s.accept()[0]
 
     # TODO multithread
@@ -92,35 +105,41 @@ def initialize_client():
 def send_data(connection, file_name):
     with open(file_name) as file:
         file_line = file.readline(MAX_LENGTH)
-        data_to_send.data = file_line
 
-        # TODO para mandar:
-        # length: struct.pack('!H', length)
-        # data: struct.pack('!3s', 'asd'.encode())
-        # both: result = struct.pack('!H3s', length, 'asd'.encode())
-        # send: sck.send(encode16(result))
-        # length = len(file_line)
-        # fmt = '!16sH{length}s'.format(length=length)
-        # data = struct.pack(fmt, 2*SYNC, length, file_line.encode())
-        # TODO descobrir se é jeito certo de mandar SYNC
-        sentinel = struct.pack('!LL', int(SYNC, base=16), int(SYNC, base=16))
-        connection.send(sentinel)
+        while file_line:
+            data_to_send.data = file_line
 
-        # TODO codificar antes de mandar e adicionar outros campos
-        fmt = '!HHBB{length}s'.format(length=data_to_send.get_length())
-        data = struct.pack(fmt, data_to_send.get_length(), data_to_send.checksum(), data_to_send.id,
-                           data_to_send.flags, data_to_send.data.encode())
-        connection.send(data)
+            # TODO remover, apenas teste de tipo para encode
+            connection.send('6'.encode())
+            # TODO para mandar:
+            # length: struct.pack('!H', length)
+            # data: struct.pack('!3s', 'asd'.encode())
+            # both: result = struct.pack('!H3s', length, 'asd'.encode())
+            # send: sck.send(encode16(result))
+            # length = len(file_line)
+            # fmt = '!16sH{length}s'.format(length=length)
+            # data = struct.pack(fmt, 2*SYNC, length, file_line.encode())
+            # TODO descobrir se é jeito certo de mandar SYNC
+            sentinel = struct.pack('!LL', int(SYNC, base=16), int(SYNC, base=16))
+            connection.send(sentinel)
 
-        print('Data sent from file', file_name)
-        # TODO timeout do send
-        while not data_to_send.confirmed:
-            pass
+            # TODO codificar antes de mandar e adicionar outros campos
+            fmt = '!HHBB{length}s'.format(length=data_to_send.get_length())
+            data = struct.pack(fmt, data_to_send.get_length(), data_to_send.checksum(), data_to_send.id,
+                               data_to_send.flags, data_to_send.encode16())
+            connection.send(data)
+            print(datetime.datetime.now(), 'Data sent from file', file_name)
 
-        # print('Mandando2')
-        # resp = connection.send('efgh'.encode())
-        # print('RESPOSTA2:')
-        # print(resp)
+            signal.signal(signal.SIGALRM, handle_ack_timeout)
+            signal.alarm(1)
+            try:
+                while True:
+                    if data_to_send.confirmed:
+                        file_line = file.readline(MAX_LENGTH)
+                        break
+            except AckTimeoutError:
+                print(datetime.datetime.now(), 'ACK not received')
+            signal.alarm(0)
 
 
 def receive_data(connection, file_name):
