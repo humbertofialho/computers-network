@@ -9,7 +9,6 @@
 
 # libraries
 import sys
-import struct
 import signal
 import binascii
 import datetime
@@ -35,34 +34,25 @@ class DataTransfer:
         pattern = '{:04x}' if is_2_bytes else '{:02x}'
         return pattern.format(number)
 
-    def get_formatted_length(self):
-        return self._format_numbers(len(self.data))
-
     def checksum(self):
         # TODO implementar
-        return self._format_numbers(0)
-
-    def get_formatted_id(self):
-        return self._format_numbers(self.id, False)
-
-    def get_formatted_flags(self):
-        return self._format_numbers(self.flags, False)
+        return 0
 
     # encrypt
     def encode16(self):
         return binascii.hexlify(self.data.encode())
 
     # decrypt
-    def decode16(self):
-        return binascii.unhexlify(self.data).decode()
+    def decode16(self, new_data):
+        self.data = binascii.unhexlify(new_data).decode()
 
     def get_frame(self):
-        length = self.get_formatted_length()
-        checksum = self.checksum()
-        id = self.get_formatted_id()
-        flags = self.get_formatted_flags()
+        formatted_length = self._format_numbers(len(self.data))
+        formatted_checksum = self._format_numbers(self.checksum())
+        formatted_id = self._format_numbers(self.id, False)
+        formatted_flags = self._format_numbers(self.flags, False)
         encoded_data = self.encode16()
-        header = (length + checksum + id + flags).encode()
+        header = (formatted_length + formatted_checksum + formatted_id + formatted_flags).encode()
         return header + encoded_data
 
 
@@ -149,6 +139,8 @@ def send_data(connection, file_name):
 
 
 def receive_data(connection, file_name):
+    last_received_id = 1
+
     while True:
         print(datetime.datetime.now(), 'Waiting for data')
 
@@ -165,8 +157,8 @@ def receive_data(connection, file_name):
         length = connection.recv(4)
         data_to_receive.length = int(length.decode(), base=16)
 
-        checksum = connection.recv(4)
-        data_to_receive.checksum = int(checksum.decode(), base=16)
+        received_checksum = connection.recv(4)
+        received_checksum = int(received_checksum.decode(), base=16)
 
         id = connection.recv(2)
         data_to_receive.id = int(id.decode(), base=16)
@@ -174,48 +166,19 @@ def receive_data(connection, file_name):
         flags = connection.recv(2)
         data_to_receive.flags = int(flags.decode(), base=16)
 
-        data = connection.recv(2*length)
-        print('DATA:', data)
+        data = connection.recv(2*data_to_receive.length)
+        data_to_receive.decode16(data)
 
         if flags == 128:
             # tratar ACK recebido
             pass
-
-    # data1 = connection.recv(2)
-    # test_length = struct.unpack('!H', data1)[0]
-    # print(test_length)
-    # # ler o htons: struct.unpack('!H', data1)[0]
-    #
-    # print('Esperando dados2:')
-    # data2 = connection.recv(test_length)
-    # print(data2.decode())
-    #
-    # print('Received data saved on file', file_name)
-    # while True:
-    #     data = recv()
-    #     if data != SYNC:
-    #         print('SYNC ERROR')
-    #         break
-    #
-    #     data = recv()
-    #     if data != SYNC:
-    #         print('SYNC ERROR')
-    #         break
-    #
-    #     tamanho = recv()
-    #     checksum = recv()
-    #     id = recv()
-    #     flag = recv()
-    #     body = recv()
-    #
-    #     if error_detection(checksum, ...):
-    #         print('CHECKSUM ERROR')
-    #         break
-    #
-    #     print_file('file', body)
-    #
-    # receive()
-    # pass
+        else:
+            # tratar novo dado
+            if data_to_receive.checksum() != received_checksum:
+                print(datetime.datetime.now(), 'Checksum error!')
+                continue
+            print('nao continuou')
+        print('nao continuou')
 
 
 # main
