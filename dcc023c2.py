@@ -8,13 +8,14 @@
 # --------------------------------------------------------------------------- #
 
 # libraries
+import os
 import sys
-import signal
 import binascii
 import datetime
+import threading
 import socket as sck
 
-MAX_LENGTH = 65535
+MAX_LENGTH = 65000
 SYNC = 'dcc023c2'
 
 
@@ -56,16 +57,9 @@ class DataTransfer:
         return header + encoded_data
 
 
-data_to_send = DataTransfer()
-data_to_receive = DataTransfer(id=0)
-
-
-class AckTimeoutError(Exception):
-    pass
-
-
-def handle_ack_timeout(*_):
-    raise AckTimeoutError()
+data_to_send = DataTransfer(id=0)
+data_to_receive = DataTransfer()
+ack_timeout = False
 
 
 # start the code as server
@@ -76,6 +70,9 @@ def initialize_server():
     input_file_name = sys.argv[3]
     output_file_name = sys.argv[4]
 
+    if os.path.exists(output_file_name):
+        os.remove(output_file_name)
+
     # starting socket with standard protocol
     s = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
     s.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
@@ -85,11 +82,10 @@ def initialize_server():
     print(datetime.datetime.now(), 'Server running on port', port)
     connection = s.accept()[0]
 
-    # TODO multithread
-    # receive_data(connection, output_file_name)
-    send_data(connection, input_file_name)
-
-    return
+    send_thread = threading.Thread(target=send_data, args=(connection, input_file_name))
+    send_thread.start()
+    receive_thread = threading.Thread(target=receive_data, args=(connection, output_file_name))
+    receive_thread.start()
 
 
 # start the code as client
@@ -100,58 +96,66 @@ def initialize_client():
     input_file_name = sys.argv[3]
     output_file_name = sys.argv[4]
 
+    if os.path.exists(output_file_name):
+        os.remove(output_file_name)
+
     connection = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
     connection.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     connection.connect((ip, port))
 
-    # TODO multithread
-    receive_data(connection, output_file_name)
-    # send_data(connection, input_file_name)
-
-    connection.close()
-    print('Done')
+    send_thread = threading.Thread(target=send_data, args=(connection, input_file_name))
+    send_thread.start()
+    receive_thread = threading.Thread(target=receive_data, args=(connection, output_file_name))
+    receive_thread.start()
 
 
 # function to send data from file
 def send_data(connection, file_name):
     with open(file_name) as file:
-        file_line = file.readline(MAX_LENGTH)
+        file_line = file.read(MAX_LENGTH)
 
         while file_line:
             data_to_send.data = file_line
-            data_to_send.prepare_for_new_data()
 
             connection.send(SYNC.encode())
             connection.send(SYNC.encode())
             connection.send(data_to_send.get_frame())
             print(datetime.datetime.now(), 'Data sent from file', file_name)
 
-            signal.signal(signal.SIGALRM, handle_ack_timeout)
-            signal.alarm(1)
-            try:
-                while True:
-                    if data_to_send.confirmed:
-                        file_line = file.readline(MAX_LENGTH)
-                        break
-            except AckTimeoutError:
-                print(datetime.datetime.now(), 'ACK not received')
-            signal.alarm(0)
+            global ack_timeout
+            ack_timeout = False
+
+            def handle_timeout():
+                global ack_timeout
+                ack_timeout = True
+
+            timer = threading.Timer(1, handle_timeout)
+            timer.start()
+            while True:
+                if ack_timeout:
+                    print(datetime.datetime.now(), 'ACK not received.')
+                    break
+
+                if data_to_send.confirmed:
+                    file_line = file.read(MAX_LENGTH)
+                    data_to_send.prepare_for_new_data()
+                    break
 
 
 def receive_data(connection, file_name):
     last_received_id = 1
 
     while True:
-        print(datetime.datetime.now(), 'Waiting for data')
+        print(datetime.datetime.now(), 'Waiting for data.')
 
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            print(datetime.datetime.now(), 'Resynchronizing')
+            print(datetime.datetime.now(), 'Resynchronizing...')
             continue
 
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            print(datetime.datetime.now(), 'Resynchronizing')
+            print(datetime.datetime.now(), 'Resynchronizing...')
             continue
 
         length = connection.recv(4)
@@ -169,16 +173,32 @@ def receive_data(connection, file_name):
         data = connection.recv(2*data_to_receive.length)
         data_to_receive.decode16(data)
 
-        if flags == 128:
+        if data_to_receive.checksum() != received_checksum:
+            print(datetime.datetime.now(), 'Checksum error!')
+            continue
+
+        if data_to_receive.flags == 128:
             # tratar ACK recebido
-            pass
+            if data_to_receive.id == data_to_send.id:
+                print(datetime.datetime.now(), 'ACK received.')
+                data_to_send.confirmed = True
         else:
             # tratar novo dado
-            if data_to_receive.checksum() != received_checksum:
-                print(datetime.datetime.now(), 'Checksum error!')
+            expected_id = 1 if last_received_id == 0 else 0
+            if data_to_receive.id != expected_id:
+                print(datetime.datetime.now(), 'Unexpected data.')
                 continue
-            print('nao continuou')
-        print('nao continuou')
+
+            with open(file_name, 'a') as file:
+                file.write(data_to_receive.data)
+                print(datetime.datetime.now(), 'Data write on file', file_name)
+                data_to_receive.data = ''
+                data_to_receive.flags = 128
+                last_received_id = data_to_receive.id
+
+                connection.send(SYNC.encode())
+                connection.send(SYNC.encode())
+                connection.send(data_to_receive.get_frame())
 
 
 # main
