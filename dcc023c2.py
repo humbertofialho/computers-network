@@ -4,7 +4,7 @@
 # --------------------- Prof. Ítalo Fernando Scota Cunha -------------------- #
 # ------------------------ Trabalho Prático I - DCCNET ---------------------- #
 # ----------- Alunos :   Humberto Monteiro Fialho   (2013430811) ------------ #
-# -----------            Rafael Carneiro de Castro  (2013030210) ------------ #
+# --------------------   Rafael Carneiro de Castro  (2013030210) ------------ #
 # --------------------------------------------------------------------------- #
 
 # libraries
@@ -17,7 +17,6 @@ import socket as sck
 
 MAX_LENGTH = 65000
 SYNC = 'dcc023c2'
-
 
 class DataTransfer:
     def __init__(self, data='', id=1, flags=0):
@@ -36,8 +35,12 @@ class DataTransfer:
         return pattern.format(number)
 
     def checksum(self):
-        # TODO implementar
-        return 0
+        sum = 0
+		for i in range(len(string)):
+			sum = sum + ord(string[i])
+		temp = sum % 64  	# mod64 - can change to other length
+		rem = -temp  		# two's complement, easier way
+		return '%2X' % (rem & 0xFF)
 
     # encrypt
     def encode16(self):
@@ -56,7 +59,7 @@ class DataTransfer:
         header = (formatted_length + formatted_checksum + formatted_id + formatted_flags).encode()
         return header + encoded_data
 
-
+# global variables
 data_to_send = DataTransfer(id=0)
 data_to_receive = DataTransfer()
 ack_timeout = False
@@ -81,7 +84,8 @@ def initialize_server():
 
     print(datetime.datetime.now(), 'Server running on port', port)
     connection = s.accept()[0]
-
+	
+	# starting one thread to send and other to receive
     send_thread = threading.Thread(target=send_data, args=(connection, input_file_name))
     send_thread.start()
     receive_thread = threading.Thread(target=receive_data, args=(connection, output_file_name))
@@ -96,6 +100,7 @@ def initialize_client():
     input_file_name = sys.argv[3]
     output_file_name = sys.argv[4]
 
+	# deleting output file before to use, if exist
     if os.path.exists(output_file_name):
         os.remove(output_file_name)
 
@@ -103,6 +108,7 @@ def initialize_client():
     connection.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     connection.connect((ip, port))
 
+	# starting one thread to send and other to receive
     send_thread = threading.Thread(target=send_data, args=(connection, input_file_name))
     send_thread.start()
     receive_thread = threading.Thread(target=receive_data, args=(connection, output_file_name))
@@ -129,6 +135,7 @@ def send_data(connection, file_name):
                 global ack_timeout
                 ack_timeout = True
 
+			# to measure time 
             timer = threading.Timer(1, handle_timeout)
             timer.start()
             while True:
@@ -141,13 +148,14 @@ def send_data(connection, file_name):
                     data_to_send.prepare_for_new_data()
                     break
 
-
+# function to receive data from file
 def receive_data(connection, file_name):
     last_received_id = 1
 
     while True:
         print(datetime.datetime.now(), 'Waiting for data.')
-
+		
+		# finding SYNC expression
         sync = connection.recv(8)
         if sync.decode() != SYNC:
             print(datetime.datetime.now(), 'Resynchronizing...')
@@ -158,6 +166,7 @@ def receive_data(connection, file_name):
             print(datetime.datetime.now(), 'Resynchronizing...')
             continue
 
+		# collecting informations in the string
         length = connection.recv(4)
         data_to_receive.length = int(length.decode(), base=16)
 
@@ -172,7 +181,8 @@ def receive_data(connection, file_name):
 
         data = connection.recv(2*data_to_receive.length)
         data_to_receive.decode16(data)
-
+		
+		# verifying checksum value
         if data_to_receive.checksum() != received_checksum:
             print(datetime.datetime.now(), 'Checksum error!')
             continue
@@ -182,6 +192,10 @@ def receive_data(connection, file_name):
             if data_to_receive.id == data_to_send.id:
                 print(datetime.datetime.now(), 'ACK received.')
                 data_to_send.confirmed = True
+			else: # isso ??
+				print(datetime.datetime.now(), 'ACK not received: different id.')
+                data_to_send.confirmed = False
+			
         else:
             # tratar novo dado
             expected_id = 1 if last_received_id == 0 else 0
@@ -200,8 +214,7 @@ def receive_data(connection, file_name):
                 connection.send(SYNC.encode())
                 connection.send(data_to_receive.get_frame())
 
-
-# main
+# main: calling functions to receive inputs
 def main():
     if sys.argv[1] == '-s':
         initialize_server()
@@ -209,7 +222,6 @@ def main():
         initialize_client()
 
     return
-
 
 # --------------------------------------------------------------------------- #
 # calling main function
