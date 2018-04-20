@@ -54,7 +54,7 @@ class DataTransfer:
         self.data = binascii.unhexlify(new_data).decode()
 
     def get_frame(self):
-        formatted_length = self._format_numbers(len(self.data))
+        formatted_length = self._format_numbers(len(self.data.encode()))
         formatted_checksum = self._format_numbers(self.checksum())
         formatted_id = self._format_numbers(self.id, False)
         formatted_flags = self._format_numbers(self.flags, False)
