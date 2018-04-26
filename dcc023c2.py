@@ -47,14 +47,14 @@ class DataTransfer:
 
     # encrypt
     def encode16(self):
-        return binascii.hexlify(self.data.encode())
+        return binascii.hexlify(self.data)
 
     # decrypt
     def decode16(self, new_data):
-        self.data = binascii.unhexlify(new_data).decode()
+        self.data = binascii.unhexlify(new_data)
 
     def get_frame(self):
-        formatted_length = self._format_numbers(len(self.data.encode()))
+        formatted_length = self._format_numbers(len(self.data))
         formatted_checksum = self._format_numbers(self.checksum())
         formatted_id = self._format_numbers(self.id, False)
         formatted_flags = self._format_numbers(self.flags, False)
@@ -67,6 +67,10 @@ class DataTransfer:
 data_to_send = DataTransfer(id=0)
 data_to_receive = DataTransfer()
 ack_timeout = False
+
+
+def log(message):
+    print('[', threading.currentThread().getName(), ']', datetime.datetime.now(), message)
 
 
 # start the code as server
@@ -86,7 +90,7 @@ def initialize_server():
     s.bind((ip, port))
     s.listen(1)
 
-    print(datetime.datetime.now(), 'Server running on port', port)
+    log('Server running on port ' + str(port))
     connection = s.accept()[0]
 
     # starting one thread to send and other to receive
@@ -121,7 +125,7 @@ def initialize_client():
 
 # function to send data from file
 def send_data(connection, file_name):
-    with open(file_name) as file:
+    with open(file_name, 'rb') as file:
         file_line = file.read(MAX_LENGTH)
 
         while file_line:
@@ -130,7 +134,7 @@ def send_data(connection, file_name):
             connection.send(SYNC.encode())
             connection.send(SYNC.encode())
             connection.send(data_to_send.get_frame())
-            print(datetime.datetime.now(), 'Data sent from file', file_name)
+            log('Data sent from file ' + file_name)
 
             global ack_timeout
             ack_timeout = False
@@ -144,7 +148,7 @@ def send_data(connection, file_name):
             timer.start()
             while True:
                 if ack_timeout:
-                    print(datetime.datetime.now(), 'ACK not received.')
+                    log('ACK not received.')
                     break
 
                 if data_to_send.confirmed:
@@ -158,17 +162,17 @@ def receive_data(connection, file_name):
     last_received_id = 1
 
     while True:
-        print(datetime.datetime.now(), 'Waiting for data.')
+        log('Waiting for data.')
 
         # finding SYNC expression
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            print(datetime.datetime.now(), 'Resynchronizing...')
+            log('Resynchronizing...')
             continue
 
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            print(datetime.datetime.now(), 'Resynchronizing...')
+            log('Resynchronizing...')
             continue
 
         # collecting information in the string
@@ -188,26 +192,26 @@ def receive_data(connection, file_name):
             data = connection.recv(2*data_to_receive.length)
             data_to_receive.decode16(data)
         except binascii.Error or UnicodeDecodeError:
-            print(datetime.datetime.now(), 'Conversion error!')
+            log('Conversion error!')
             continue
 
         # verifying checksum value
         if data_to_receive.checksum() != received_checksum:
-            print(datetime.datetime.now(), 'Checksum error!')
+            log('Checksum error!')
             continue
 
         if data_to_receive.flags == 128:
             # treat received ACK
             if data_to_receive.id == data_to_send.id:
-                print(datetime.datetime.now(), 'ACK received.')
+                log('ACK received.')
                 data_to_send.confirmed = True
 
         else:
             # treat new data
             expected_id = 1 if last_received_id == 0 else 0
             if data_to_receive.id != expected_id:
-                print(datetime.datetime.now(), 'Retransmission data, resending ACK.')
-                data_to_receive.data = ''
+                log('Retransmission data, resending ACK.')
+                data_to_receive.data = b''
                 data_to_receive.flags = 128
 
                 connection.send(SYNC.encode())
@@ -215,10 +219,10 @@ def receive_data(connection, file_name):
                 connection.send(data_to_receive.get_frame())
                 continue
 
-            with open(file_name, 'a') as file:
+            with open(file_name, 'ab') as file:
                 file.write(data_to_receive.data)
-                print(datetime.datetime.now(), 'Data written on file {}, sending ACK.'.format(file_name))
-                data_to_receive.data = ''
+                log('Data written on file {}, sending ACK.'.format(file_name))
+                data_to_receive.data = b''
                 data_to_receive.flags = 128
                 last_received_id = data_to_receive.id
 
