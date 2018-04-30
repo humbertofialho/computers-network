@@ -36,6 +36,29 @@ class DataTransfer:
         return pattern.format(number)
 
     def checksum(self):
+        # data = 2 * SYNC
+        # data += self._format_numbers(len(self.data))
+        # data += self._format_numbers(0)
+        # data += self._format_numbers(self.id, False)
+        # data += self._format_numbers(self.flags, False)
+        # encoded_data = self.encode16()
+        # data = data.encode() + encoded_data
+        #
+        # checksum = 0
+        # pointer = 0
+        # size = len(data)
+        #
+        # while size > 1:
+        #     checksum += int(str('%02x' % (data[pointer],) + str('%02x' % (data[pointer + 1],))), 16)
+        #     size -= 2
+        #     pointer += 2
+        # if size:
+        #     checksum += data[pointer]
+        #
+        # checksum = (checksum >> 16) + (checksum & 0xffff)
+        # checksum += (checksum >> 16)
+        #
+        # return (~checksum) & 0xFFFF
         # TODO implementar
         return 0
         # sum = 0
