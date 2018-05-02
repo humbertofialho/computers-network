@@ -41,8 +41,7 @@ class DataTransfer:
         data += self._format_numbers(0)
         data += self._format_numbers(self.id, False)
         data += self._format_numbers(self.flags, False)
-        encoded_data = self.encode16()
-        data = data.encode() + encoded_data
+        data = binascii.unhexlify(data.encode()) + self.data
 
         checksum = 0
         pointer = 0
