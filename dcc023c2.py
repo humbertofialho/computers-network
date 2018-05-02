@@ -176,17 +176,16 @@ def receive_data(connection, file_name):
     last_received_id = 1
 
     while True:
-        log('Waiting for data.')
-
+        # waiting for data
         # finding SYNC expression
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            log('Resynchronizing...')
+            # resynchronizing
             continue
 
         sync = connection.recv(8)
         if sync.decode() != SYNC:
-            log('Resynchronizing...')
+            # resynchronizing
             continue
 
         # collecting information in the string
