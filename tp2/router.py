@@ -7,55 +7,117 @@
 # --------------------   Rafael Carneiro de Castro  (2013030210) ------------ #
 # --------------------------------------------------------------------------- #
 
-# manter um histórico com as rotas não otimizadas para fazer troca instantânea
-# quando um enlace for desativado
-
-# DÚVIDAS:
+# TODO DÚVIDAS:
 # algum jeito de ler qualquer tamanho no recv do UDP? qual seria o maximo?
 # se passa parametro com flag, todos tem flag também?
+# ctrl+c com stack trace pode atrapalhar?
 
 import sys
 import json
-# TODO remove import
-import time
 import threading
 import socket as sck
 
-IP = '127.0.1.1'
-PORT = 55151
+MAX_PAYLOAD_SIZE = 65536
 
-test_data = dict()
-test_data['a'] = 1
-test_data['b'] = 'string'
-string = json.dumps(test_data)
 
-socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
-socket.sendto('teste'.encode(), (IP, PORT))
-socket.sendto(string.encode(), (IP, PORT))
+class Router:
+    neighbors = []
+    routing = []
+    history = []
+
+    def __init__(self, ip='', port=55151, period=1):
+        self.ip = ip
+        self.port = port
+        self.period = period
+
+    def set_data(self, ip, period):
+        self.ip = ip
+        self.period = period
+        this_routing = dict()
+        this_routing['ip'] = ip
+        this_routing['distance'] = 0
+        this_routing['next'] = ip
+        self.routing.append(this_routing)
+
+    def add_neighbor(self, neighbor_ip, neighbor_weight):
+        new_neighbor = dict()
+        new_neighbor['ip'] = neighbor_ip
+        new_neighbor['weight'] = neighbor_weight
+        self.neighbors.append(new_neighbor)
+
+    def remove_neighbor(self, neighbor_ip):
+        # usar o histórico para definir nova rota
+        # TODO
+        pass
+
+    def send_table(self):
+        # TODO
+        pass
+
+    def receive_table_line(self):
+        # manter um histórico com as rotas não otimizadas para fazer troca instantânea
+        # quando um enlace for desativado
+        # TODO
+        pass
+
+
+router = Router()
 
 
 def star_router(address, update_period, startup_commands):
-    # TODO remove debug print
-    print(address, update_period, startup_commands)
+    router.set_data(address, update_period)
 
-    # TODO remove tests
+    socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
+    socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
+    socket.bind((router.ip, router.port))
+
+    if startup_commands:
+        read_command_file(startup_commands)
+
     read_thread = threading.Thread(target=read_commands, args=())
     read_thread.start()
-    print_thread = threading.Thread(target=read_command_file, args=())
-    print_thread.start()
+    read_thread = threading.Thread(target=receive_tables, args=(socket,))
+    read_thread.start()
+    # TODO send from period
+    # # TODO remove tests
+    # print_thread = threading.Thread(target=read_command_file, args=('teste',))
+    # print_thread.start()
 
 
-def read_command_file():
-    # TODO remove tests
-    for index in range(5):
-        print('File processed', index)
-        time.sleep(1)
+def read_command_file(file_name):
+    with open(file_name, 'r') as file:
+        line = file.readline()
+        while line:
+            if line is not '\n':
+                read_command(line)
+            line = file.readline()
 
 
 def read_commands():
-    # TODO remove tests
-    read = input()
-    print('Read data>', read)
+    while True:
+        read = input()
+        read_command(read)
+
+
+def read_command(read_line):
+    read_line = read_line.split()
+
+    if read_line[0] == 'add':
+        router.add_neighbor(read_line[1], read_line[2])
+    elif read_line[0] == 'del':
+        # TODO
+        pass
+    elif read_line[0] == 'trace':
+        # TODO
+        pass
+
+
+def receive_tables(connection):
+    while True:
+        data = json.loads(connection.recv(MAX_PAYLOAD_SIZE))
+        # TODO remove debug print
+        # TODO async log in file
+        print('Data>', data)
 
 
 # main: calling functions to receive inputs
