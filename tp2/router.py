@@ -26,13 +26,9 @@ class Router:
     routing = []
     history = []
 
-    def __init__(self, ip='', port=55151, period=1):
+    def __init__(self, ip, period):
         self.ip = ip
-        self.port = port
-        self.period = period
-
-    def set_data(self, ip, period):
-        self.ip = ip
+        self.port = 55151
         self.period = period
         this_routing = dict()
         this_routing['ip'] = ip
@@ -64,11 +60,12 @@ class Router:
         pass
 
 
-router = Router()
+router = None
 
 
 def star_router(address, update_period, startup_commands):
-    router.set_data(address, update_period)
+    global router
+    router = Router(address, update_period)
 
     socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
     socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
