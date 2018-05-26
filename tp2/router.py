@@ -33,13 +33,14 @@ class Router:
         this_routing = dict()
         this_routing['ip'] = ip
         this_routing['distance'] = 0
-        this_routing['next'] = ip
+        # the next vector contains IPs with TTLs
+        this_routing['next'] = {ip: 4}
         self.routing.append(this_routing)
 
     def add_neighbor(self, neighbor_ip, neighbor_weight):
         new_neighbor = dict()
         new_neighbor['ip'] = neighbor_ip
-        new_neighbor['weight'] = neighbor_weight
+        new_neighbor['weight'] = int(neighbor_weight)
         self.neighbors.append(new_neighbor)
 
     def remove_neighbor(self, neighbor_ip):
@@ -52,12 +53,35 @@ class Router:
         # TODO
         pass
 
-    def receive_table_info(self):
-        # manter um histórico com as rotas não otimizadas para fazer troca instantânea
-        # quando um enlace for desativado
-        # subtrair TTL dos dados do source
-        # TODO
-        pass
+    def receive_table_info(self, table_info):
+        source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))[0]
+        # TODO subtract tll FROM ROUTING AND HISTORY and remove tll equals to 0
+
+        for ip in table_info['distances'].keys():
+            on_routing = list(filter(lambda route: route['ip'] == ip, self.routing))
+            if len(on_routing) > 0:
+                # there is already a route to this IP
+                if on_routing[0]['distance'] > table_info['distances'][ip] + source['weight']:
+                    # if the new distance is better, then update the routing table with TTL 4
+                    on_routing[0]['next'] = {source['ip']: 4}
+                    on_routing[0]['distance'] = table_info['distances'][ip] + source['weight']
+                elif on_routing[0]['distance'] == table_info['distances'][ip] + source['weight']:
+                    # if the new distance is equals, then add the new option with TTL 4
+                    if source['ip'] not in on_routing[0]['next'].keys():
+                        on_routing[0]['next'][source['ip']] = 4
+                else:
+                    # if the new distance is worse, then add it to the history
+                    # TODO add history
+                    # manter um histórico com as rotas não otimizadas para fazer troca instantânea
+                    # quando um enlace for desativado
+                    pass
+            else:
+                # there isn't a route to this IP, just add with TTL 4 by the source
+                new_route = dict()
+                new_route['ip'] = ip
+                new_route['distance'] = table_info['distances'][ip] + source['weight']
+                new_route['next'] = {source['ip']: 4}
+                self.routing.append(new_route)
 
 
 router = None
@@ -76,7 +100,7 @@ def star_router(address, update_period, startup_commands):
 
     read_thread = threading.Thread(target=read_commands, args=())
     read_thread.start()
-    read_thread = threading.Thread(target=receive_tables, args=(socket,))
+    read_thread = threading.Thread(target=receive_data, args=(socket,))
     read_thread.start()
     # TODO send from period
     # # TODO remove tests
@@ -100,8 +124,9 @@ def read_commands():
 
 
 def read_command(read_line):
-    read_line = read_line.split()
+    global router
 
+    read_line = read_line.split()
     if read_line[0] == 'add':
         router.add_neighbor(read_line[1], read_line[2])
     elif read_line[0] == 'del':
@@ -112,12 +137,24 @@ def read_command(read_line):
         pass
 
 
-def receive_tables(connection):
+def receive_data(connection):
+    global router
+
     while True:
         data = json.loads(connection.recv(MAX_PAYLOAD_SIZE))
+
+        if data['type'] == 'update':
+            router.receive_table_info(data)
+            # TODO remove debug print
+            print('Routing>', router.routing)
+        elif data['type'] == 'trace':
+            # TODO
+            pass
+        elif data['type'] == 'data':
+            # TODO
+            pass
         # TODO remove debug print
-        # TODO async log in file
-        print('Data>', data)
+        # TODO async log in file with received data
 
 
 # main: calling functions to receive inputs
