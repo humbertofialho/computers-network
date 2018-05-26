@@ -11,6 +11,7 @@
 # algum jeito de ler qualquer tamanho no recv do UDP? qual seria o maximo?
 # se passa parametro com flag, todos tem flag também?
 # ctrl+c com stack trace pode atrapalhar?
+# period é segundos mesmo?
 
 import sys
 import json
@@ -51,12 +52,14 @@ class Router:
         pass
 
     def send_table(self):
+        # split horizon
         # TODO
         pass
 
-    def receive_table_line(self):
+    def receive_table_info(self):
         # manter um histórico com as rotas não otimizadas para fazer troca instantânea
         # quando um enlace for desativado
+        # subtrair TTL dos dados do source
         # TODO
         pass
 
