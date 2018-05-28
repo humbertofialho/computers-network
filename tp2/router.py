@@ -12,6 +12,7 @@
 # se passa parametro com flag, todos tem flag também?
 # ctrl+c com stack trace pode atrapalhar?
 # period é segundos mesmo?
+# se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
 
 import sys
 import json
@@ -53,6 +54,19 @@ class Router:
         # TODO
         pass
 
+    def update_history(self, ip, next_hop, distance, ttl):
+        on_history = list(filter(lambda route: route['ip'] == ip and route['distance'] == distance, self.history))
+        if len(on_history) > 0:
+            # there is a history with that host and distance, just add or update next
+            on_history[0]['next'] = {next_hop: ttl}
+        else:
+            # add new history
+            new_history = dict()
+            new_history['ip'] = ip
+            new_history['next'] = {next_hop: ttl}
+            new_history['distance'] = distance
+            self.history.append(new_history)
+
     def receive_table_info(self, table_info):
         source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))[0]
         # TODO subtract tll FROM ROUTING AND HISTORY and remove tll equals to 0
@@ -63,15 +77,17 @@ class Router:
                 # there is already a route to this IP
                 if on_routing[0]['distance'] > table_info['distances'][ip] + source['weight']:
                     # if the new distance is better, then update the routing table with TTL 4
+                    # TODO add old to history if new source ip
                     on_routing[0]['next'] = {source['ip']: 4}
                     on_routing[0]['distance'] = table_info['distances'][ip] + source['weight']
                 elif on_routing[0]['distance'] == table_info['distances'][ip] + source['weight']:
-                    # if the new distance is equals, then add the new option with TTL 4
-                    if source['ip'] not in on_routing[0]['next'].keys():
-                        on_routing[0]['next'][source['ip']] = 4
+                    # if the new distance is equals, then add or update the option with TTL 4
+                    on_routing[0]['next'][source['ip']] = 4
                 else:
-                    # if the new distance is worse, then add it to the history
-                    # TODO add history
+                    # the new distance is worse
+                    # TODO weight changed, remove from history and update current routing
+                    # TODO if there are other routes (load balancing), keep them, just remove
+                    # TODO else, just update history
                     # manter um histórico com as rotas não otimizadas para fazer troca instantânea
                     # quando um enlace for desativado
                     pass
@@ -130,7 +146,7 @@ def read_command(read_line):
     if read_line[0] == 'add':
         router.add_neighbor(read_line[1], read_line[2])
     elif read_line[0] == 'del':
-        # TODO
+        # TODO update routing from history
         pass
     elif read_line[0] == 'trace':
         # TODO
@@ -147,6 +163,7 @@ def receive_data(connection):
             router.receive_table_info(data)
             # TODO remove debug print
             print('Routing>', router.routing)
+            print('History>', router.history)
         elif data['type'] == 'trace':
             # TODO
             pass
