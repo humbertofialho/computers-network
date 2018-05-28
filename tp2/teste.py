@@ -5,7 +5,7 @@ IP = '127.0.1.1'
 PORT = 55151
 socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
 
-obj = {
+obj1 = {
     'type': 'update',
     'source': '127.0.1.5',
     'destination': '127.0.1.1',
@@ -16,19 +16,20 @@ obj = {
         '127.0.1.5': 0
     }
 }
-# obj = {
-#     'type': 'update',
-#     'source': '127.0.1.4',
-#     'destination': '127.0.1.1',
-#     'distances': {
-#         '127.0.1.1': 10,
-#         '127.0.1.2': 10,
-#         '127.0.1.3': 5,
-#         '127.0.1.5': 0,
-#         '127.0.1.6': 15
-#     }
-# }
-socket.sendto(json.dumps(obj).encode(), (IP, PORT))
+socket.sendto(json.dumps(obj1).encode(), (IP, PORT))
+obj2 = {
+    'type': 'update',
+    'source': '127.0.1.4',
+    'destination': '127.0.1.1',
+    'distances': {
+        '127.0.1.1': 10,
+        '127.0.1.2': 10,
+        '127.0.1.3': 5,
+        '127.0.1.5': 0,
+        '127.0.1.6': 15
+    }
+}
+socket.sendto(json.dumps(obj2).encode(), (IP, PORT))
 # obj['distances']['127.0.1.7'] = 7
 # socket.sendto(json.dumps(obj).encode(), (IP, PORT))
 

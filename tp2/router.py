@@ -58,7 +58,7 @@ class Router:
         on_history = list(filter(lambda route: route['ip'] == ip and route['distance'] == distance, self.history))
         if len(on_history) > 0:
             # there is a history with that host and distance, just add or update next
-            on_history[0]['next'] = {next_hop: ttl}
+            on_history[0]['next'][next_hop] = ttl
         else:
             # add new history
             new_history = dict()
@@ -77,7 +77,9 @@ class Router:
                 # there is already a route to this IP
                 if on_routing[0]['distance'] > table_info['distances'][ip] + source['weight']:
                     # if the new distance is better, then update the routing table with TTL 4
-                    # TODO add old to history if new source ip
+                    for next_hop in on_routing[0]['next'].keys():
+                        # add to history old entry
+                        self.update_history(ip, next_hop, on_routing[0]['distance'], on_routing[0]['next'][next_hop])
                     on_routing[0]['next'] = {source['ip']: 4}
                     on_routing[0]['distance'] = table_info['distances'][ip] + source['weight']
                 elif on_routing[0]['distance'] == table_info['distances'][ip] + source['weight']:
