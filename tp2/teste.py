@@ -13,7 +13,8 @@ obj1 = {
         '127.0.1.1': 10,
         '127.0.1.2': 10,
         '127.0.1.3': 10,
-        '127.0.1.5': 0
+        '127.0.1.5': 0,
+        '127.0.1.7': 5
     }
 }
 socket.sendto(json.dumps(obj1).encode(), (IP, PORT))
@@ -30,17 +31,40 @@ obj2 = {
     }
 }
 socket.sendto(json.dumps(obj2).encode(), (IP, PORT))
-# obj['distances']['127.0.1.7'] = 7
-# socket.sendto(json.dumps(obj).encode(), (IP, PORT))
-
-# socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
-# socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
-# socket.bind((IP, PORT))
-#
-# recv = socket.recv(1024)
-# print(recv)
-# recv = socket.recv(1024)
-# obj = json.loads(recv)
-# print(obj)
-# print(obj['a'])
-# print(obj['b'])
+obj3 = {
+    'type': 'update',
+    'source': '127.0.1.6',
+    'destination': '127.0.1.1',
+    'distances': {
+        '127.0.1.3': 13,
+        '127.0.1.6': 0,
+        '127.0.1.7': 2
+    }
+}
+socket.sendto(json.dumps(obj3).encode(), (IP, PORT))
+obj4 = {
+    'type': 'update',
+    'source': '127.0.1.5',
+    'destination': '127.0.1.1',
+    'distances': {
+        '127.0.1.1': 10,
+        '127.0.1.2': 10,
+        '127.0.1.3': 10,
+        '127.0.1.5': 0,
+        '127.0.1.7': 10
+    }
+}
+socket.sendto(json.dumps(obj4).encode(), (IP, PORT))
+obj5 = {
+    'type': 'update',
+    'source': '127.0.1.4',
+    'destination': '127.0.1.1',
+    'distances': {
+        '127.0.1.1': 10,
+        '127.0.1.2': 10,
+        '127.0.1.3': 10,
+        '127.0.1.5': 0,
+        '127.0.1.6': 15
+    }
+}
+socket.sendto(json.dumps(obj5).encode(), (IP, PORT))

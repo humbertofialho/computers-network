@@ -13,11 +13,13 @@
 # ctrl+c com stack trace pode atrapalhar?
 # period é segundos mesmo?
 # se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
+# reenviar assim que atualizar?
 
 import sys
 import json
 import threading
 import socket as sck
+from functools import reduce
 
 MAX_PAYLOAD_SIZE = 65536
 
@@ -54,18 +56,27 @@ class Router:
         # TODO
         pass
 
-    def update_history(self, ip, next_hop, distance, ttl):
+    def update_history(self, ip, next_hops, distance):
         on_history = list(filter(lambda route: route['ip'] == ip and route['distance'] == distance, self.history))
         if len(on_history) > 0:
-            # there is a history with that host and distance, just add or update next
-            on_history[0]['next'][next_hop] = ttl
+            # there is a history with that host and distance, just update next
+            on_history[0]['next'].update(next_hops)
         else:
             # add new history
             new_history = dict()
             new_history['ip'] = ip
-            new_history['next'] = {next_hop: ttl}
             new_history['distance'] = distance
+            new_history['next'] = next_hops
             self.history.append(new_history)
+
+    def get_better_from_history(self, ip, distance):
+        betters = list(filter(lambda route: route['ip'] == ip and route['distance'] <= distance, self.history))
+        if len(betters) == 0:
+            return None
+
+        better_from_history = reduce(lambda r1, r2: r1 if r1['distance'] < r2['distance'] else r2, betters)
+        self.history.remove(better_from_history)
+        return better_from_history
 
     def receive_table_info(self, table_info):
         source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))[0]
@@ -74,25 +85,28 @@ class Router:
         for ip in table_info['distances'].keys():
             on_routing = list(filter(lambda route: route['ip'] == ip, self.routing))
             if len(on_routing) > 0:
+                new_distance = table_info['distances'][ip] + source['weight']
                 # there is already a route to this IP
-                if on_routing[0]['distance'] > table_info['distances'][ip] + source['weight']:
+                if on_routing[0]['distance'] > new_distance:
                     # if the new distance is better, then update the routing table with TTL 4
-                    for next_hop in on_routing[0]['next'].keys():
-                        # add to history old entry
-                        self.update_history(ip, next_hop, on_routing[0]['distance'], on_routing[0]['next'][next_hop])
+                    # add to history old entry
+                    self.update_history(ip, on_routing[0]['next'], on_routing[0]['distance'])
                     on_routing[0]['next'] = {source['ip']: 4}
-                    on_routing[0]['distance'] = table_info['distances'][ip] + source['weight']
-                elif on_routing[0]['distance'] == table_info['distances'][ip] + source['weight']:
+                    on_routing[0]['distance'] = new_distance
+                elif on_routing[0]['distance'] == new_distance:
                     # if the new distance is equals, then add or update the option with TTL 4
                     on_routing[0]['next'][source['ip']] = 4
                 else:
                     # the new distance is worse
-                    # TODO weight changed, remove from history and update current routing
-                    # TODO if there are other routes (load balancing), keep them, just remove
-                    # TODO else, just update history
-                    # manter um histórico com as rotas não otimizadas para fazer troca instantânea
-                    # quando um enlace for desativado
-                    pass
+                    self.update_history(ip, {table_info['source']: 4}, new_distance)
+                    if table_info['source'] in on_routing[0]['next'].keys():
+                        # if the worse route is from the same source, remove it from options
+                        del on_routing[0]['next'][source['ip']]
+                        if len(on_routing[0]['next'].keys()) == 0:
+                            # if there isn't options with that distance for that IP, get from history
+                            better_from_history = self.get_better_from_history(ip, new_distance)
+                            on_routing[0]['distance'] = better_from_history['distance']
+                            on_routing[0]['next'] = better_from_history['next']
             else:
                 # there isn't a route to this IP, just add with TTL 4 by the source
                 new_route = dict()
@@ -166,6 +180,7 @@ def receive_data(connection):
             # TODO remove debug print
             print('Routing>', router.routing)
             print('History>', router.history)
+            print('\n\n')
         elif data['type'] == 'trace':
             # TODO
             pass
