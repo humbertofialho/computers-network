@@ -11,7 +11,6 @@
 # algum jeito de ler qualquer tamanho no recv do UDP? qual seria o maximo?
 # se passa parametro com flag, todos tem flag também?
 # ctrl+c com stack trace pode atrapalhar?
-# period é segundos mesmo?
 # se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
 # reenviar assim que atualizar?
 
@@ -73,15 +72,14 @@ class Router:
 
     def receive_table_info(self, table_info):
         source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))
-        if len(source) == 0:
-            # leave if it's from unknown source
+        if len(source) == 0 or table_info['destination'] != self.ip:
+            # leave if it's from unknown source or another destination
             return
         source = source[0]
 
         # TODO subtract tll FROM ROUTING AND HISTORY and remove tll equals to 0
 
         for ip in table_info['distances'].keys():
-            # TODO transformar histórico em dict com chave IP-next
             # update the history with the route for that IP by that source
             on_history = list(filter(lambda route: route['ip'] == ip and route['next'] == table_info['source'],
                                      self.history))
@@ -170,6 +168,7 @@ def receive_data(connection):
             pass
         elif data['type'] == 'data':
             # TODO
+            # TODO ponto extra: avisar origem se não tem rota
             pass
         # TODO remove debug print
         # TODO async log in file with received data
