@@ -16,6 +16,7 @@
 
 import sys
 import json
+import copy
 import threading
 import socket as sck
 
@@ -52,7 +53,38 @@ class Router:
     def send_table(self):
         # split horizon
         # TODO
-        pass
+        routing_table = self.get_routing_table()
+
+        update_message = dict()
+        update_message['type'] = 'update'
+        update_message['source'] = self.ip
+        update_message['destination'] = ''
+        update_message['distances'] = dict()
+
+        for ip in routing_table.keys():
+            update_message['distances'][ip] = routing_table[ip][0]['distance']
+
+        connection = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
+        for neighbor in self.neighbors:
+            # copy message to use original in other neighbor messages
+            copy_message = copy.deepcopy(update_message)
+            copy_message['destination'] = neighbor['ip']
+
+            # by split horizon, remove route to destination of message
+            if neighbor['ip'] in copy_message['destination'].keys():
+                del copy_message['destination'][neighbor['ip']]
+
+            # by split horizon, remove route learned from destination of message
+            for ip in routing_table.keys():
+                learned_from_destination = list(filter(lambda option: option['next'] == neighbor['ip'],
+                                                       routing_table[ip]))
+                if len(learned_from_destination) > 0:
+                    # TODO
+                    pass
+
+        # TODO remove test
+        connection.sendto(json.dumps(self.neighbors[0]).encode(), ('127.0.1.2', 55151))
+        connection.sendto(json.dumps(self.neighbors[1]).encode(), ('127.0.1.3', 55151))
 
     def get_routing_table(self):
         # get the best options of routes for each IP
@@ -127,9 +159,7 @@ def star_router(address, update_period, startup_commands):
     read_thread = threading.Thread(target=receive_data, args=(socket,))
     read_thread.start()
     # TODO send from period
-    # # TODO remove tests
-    # print_thread = threading.Thread(target=read_command_file, args=('teste',))
-    # print_thread.start()
+    # router.send_table()
 
 
 def read_command_file(file_name):
