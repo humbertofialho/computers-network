@@ -19,7 +19,6 @@ import sys
 import json
 import threading
 import socket as sck
-from functools import reduce
 
 MAX_PAYLOAD_SIZE = 65536
 
@@ -36,9 +35,9 @@ class Router:
         this_routing = dict()
         this_routing['ip'] = ip
         this_routing['distance'] = 0
-        # the next vector contains IPs with TTLs
-        this_routing['next'] = {ip: 4}
-        self.routing.append(this_routing)
+        this_routing['next'] = ip
+        this_routing['ttl'] = 4
+        self.history.append(this_routing)
 
     def add_neighbor(self, neighbor_ip, neighbor_weight):
         new_neighbor = dict()
@@ -56,64 +55,49 @@ class Router:
         # TODO
         pass
 
-    def update_history(self, ip, next_hops, distance):
-        on_history = list(filter(lambda route: route['ip'] == ip and route['distance'] == distance, self.history))
-        if len(on_history) > 0:
-            # there is a history with that host and distance, just update next
-            on_history[0]['next'].update(next_hops)
-        else:
-            # add new history
-            new_history = dict()
-            new_history['ip'] = ip
-            new_history['distance'] = distance
-            new_history['next'] = next_hops
-            self.history.append(new_history)
+    def get_routing_table(self):
+        # get the best options of routes for each IP
+        # each one can have more than one route with the same distance (load balancing)
+        routes_by_ip = dict()
+        for history in self.history:
+            ip_key = history['ip']
+            if ip_key not in routes_by_ip.keys() or routes_by_ip[ip_key][0]['distance'] > history['distance']:
+                # if there isn't a route for that IP on the routing table,
+                # or the new history has a better distance, update de routing entry
+                routes_by_ip[ip_key] = [history]
+            elif routes_by_ip[ip_key][0]['distance'] == history['distance']:
+                # if already exists a route for that IP with that distance, add new option
+                routes_by_ip[ip_key].append(history)
 
-    def get_better_from_history(self, ip, distance):
-        betters = list(filter(lambda route: route['ip'] == ip and route['distance'] <= distance, self.history))
-        if len(betters) == 0:
-            return None
-
-        better_from_history = reduce(lambda r1, r2: r1 if r1['distance'] < r2['distance'] else r2, betters)
-        self.history.remove(better_from_history)
-        return better_from_history
+        return routes_by_ip
 
     def receive_table_info(self, table_info):
-        source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))[0]
+        source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))
+        if len(source) == 0:
+            # leave if it's from unknown source
+            return
+        source = source[0]
+
         # TODO subtract tll FROM ROUTING AND HISTORY and remove tll equals to 0
 
         for ip in table_info['distances'].keys():
-            on_routing = list(filter(lambda route: route['ip'] == ip, self.routing))
-            if len(on_routing) > 0:
-                new_distance = table_info['distances'][ip] + source['weight']
-                # there is already a route to this IP
-                if on_routing[0]['distance'] > new_distance:
-                    # if the new distance is better, then update the routing table with TTL 4
-                    # add to history old entry
-                    self.update_history(ip, on_routing[0]['next'], on_routing[0]['distance'])
-                    on_routing[0]['next'] = {source['ip']: 4}
-                    on_routing[0]['distance'] = new_distance
-                elif on_routing[0]['distance'] == new_distance:
-                    # if the new distance is equals, then add or update the option with TTL 4
-                    on_routing[0]['next'][source['ip']] = 4
-                else:
-                    # the new distance is worse
-                    self.update_history(ip, {table_info['source']: 4}, new_distance)
-                    if table_info['source'] in on_routing[0]['next'].keys():
-                        # if the worse route is from the same source, remove it from options
-                        del on_routing[0]['next'][source['ip']]
-                        if len(on_routing[0]['next'].keys()) == 0:
-                            # if there isn't options with that distance for that IP, get from history
-                            better_from_history = self.get_better_from_history(ip, new_distance)
-                            on_routing[0]['distance'] = better_from_history['distance']
-                            on_routing[0]['next'] = better_from_history['next']
+            # TODO transformar histórico em dict com chave IP-next
+            # update the history with the route for that IP by that source
+            on_history = list(filter(lambda route: route['ip'] == ip and route['next'] == table_info['source'],
+                                     self.history))
+            # there should only exists one history for that IP by that source
+            if len(on_history) > 0:
+                # there is a history for that IP by that source, just update distance and TTL
+                on_history[0]['distance'] = table_info['distances'][ip] + source['weight']
+                on_history[0]['ttl'] = 4
             else:
-                # there isn't a route to this IP, just add with TTL 4 by the source
-                new_route = dict()
-                new_route['ip'] = ip
-                new_route['distance'] = table_info['distances'][ip] + source['weight']
-                new_route['next'] = {source['ip']: 4}
-                self.routing.append(new_route)
+                # there isn't a history for that IP by that source, add new
+                new_history = dict()
+                new_history['ip'] = ip
+                new_history['distance'] = table_info['distances'][ip] + source['weight']
+                new_history['next'] = table_info['source']
+                new_history['ttl'] = 4
+                self.history.append(new_history)
 
 
 router = None
@@ -178,7 +162,7 @@ def receive_data(connection):
         if data['type'] == 'update':
             router.receive_table_info(data)
             # TODO remove debug print
-            print('Routing>', router.routing)
+            print('Routing>', router.get_routing_table())
             print('History>', router.history)
             print('\n\n')
         elif data['type'] == 'trace':
