@@ -46,7 +46,7 @@ class Router:
 
     def remove_neighbor(self, neighbor_ip):
         # usar o histórico para definir nova rota
-        # TODO
+        # TODO remove routes learned from neighbor_ip
         pass
 
     def send_table(self):
@@ -70,14 +70,24 @@ class Router:
 
         return routes_by_ip
 
+    def subtract_ttl(self, source_ip):
+        # subtract TTL from routes learned from source
+        for route in self.history:
+            if route['next'] == source_ip:
+                route['ttl'] = route['ttl'] - 1
+                if route['ttl'] == 0:
+                    # remove routes with TTL equals to 0
+                    self.history.remove(route)
+
     def receive_table_info(self, table_info):
+        # find neighbor who sent that information
         source = list(filter(lambda neighbor: neighbor['ip'] == table_info['source'], self.neighbors))
         if len(source) == 0 or table_info['destination'] != self.ip:
             # leave if it's from unknown source or another destination
             return
         source = source[0]
 
-        # TODO subtract tll FROM ROUTING AND HISTORY and remove tll equals to 0
+        self.subtract_ttl(source['ip'])
 
         for ip in table_info['distances'].keys():
             # update the history with the route for that IP by that source

@@ -61,11 +61,13 @@ obj5 = {
     'destination': '127.0.1.1',
     'distances': {
         '127.0.1.1': 10,
-        '127.0.1.2': 10,
         '127.0.1.3': 10,
         '127.0.1.5': 0,
         '127.0.1.6': 15,
         '127.0.1.8': 5
     }
 }
+socket.sendto(json.dumps(obj5).encode(), (IP, PORT))
+socket.sendto(json.dumps(obj5).encode(), (IP, PORT))
+socket.sendto(json.dumps(obj5).encode(), (IP, PORT))
 socket.sendto(json.dumps(obj5).encode(), (IP, PORT))
