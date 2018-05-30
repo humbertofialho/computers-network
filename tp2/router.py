@@ -20,7 +20,20 @@ import copy
 import threading
 import socket as sck
 
+# TODO remove
+import datetime
+
 MAX_PAYLOAD_SIZE = 65536
+
+
+# method to call function every 'secs' seconds
+def set_interval(func, secs):
+    def function_wrapper():
+        func()
+        set_interval(func, secs)
+    t = threading.Timer(secs, function_wrapper)
+    t.start()
+    return t
 
 
 class Router:
@@ -56,7 +69,10 @@ class Router:
         # TODO remove routes learned from neighbor_ip
         pass
 
-    def send_table(self):
+    def send_update(self):
+        # TODO remove print debug
+        print('Sending now', datetime.datetime.now())
+
         routing_table = self.get_routing_table()
 
         update_message = dict()
@@ -156,15 +172,20 @@ def star_router(address, update_period, startup_commands):
     socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
     socket.bind((router.ip, router.port))
 
+    # read commands from file
     if startup_commands:
         read_command_file(startup_commands)
 
+    # read commands from terminal
     read_thread = threading.Thread(target=read_commands, args=())
     read_thread.start()
+
+    # receive data from routers
     read_thread = threading.Thread(target=receive_data, args=(socket,))
     read_thread.start()
-    # TODO send from period
-    # router.send_table()
+
+    # send update message to neighbors
+    set_interval(router.send_update, router.period)
 
 
 def read_command_file(file_name):
@@ -212,7 +233,7 @@ def receive_data(connection):
             print('\n\n')
             # TODO remove
             if '127.0.1.3' in r.keys() and len(r['127.0.1.3']) == 3:
-                router.send_table()
+                router.send_update()
         elif data['type'] == 'trace':
             # TODO
             pass
@@ -243,7 +264,7 @@ def main():
         if '--startup-commands' in sys.argv:
             startup_commands = sys.argv[sys.argv.index('--startup-commands') + 1]
 
-    star_router(address, update_period, startup_commands)
+    star_router(address, int(update_period), startup_commands)
 
     return
 
