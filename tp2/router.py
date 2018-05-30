@@ -51,8 +51,6 @@ class Router:
         pass
 
     def send_table(self):
-        # split horizon
-        # TODO
         routing_table = self.get_routing_table()
 
         update_message = dict()
@@ -71,20 +69,21 @@ class Router:
             copy_message['destination'] = neighbor['ip']
 
             # by split horizon, remove route to destination of message
-            if neighbor['ip'] in copy_message['destination'].keys():
-                del copy_message['destination'][neighbor['ip']]
+            if neighbor['ip'] in copy_message['distances'].keys():
+                del copy_message['distances'][neighbor['ip']]
 
             # by split horizon, remove route learned from destination of message
+            to_remove = []
             for ip in routing_table.keys():
                 learned_from_destination = list(filter(lambda option: option['next'] == neighbor['ip'],
                                                        routing_table[ip]))
-                if len(learned_from_destination) > 0:
-                    # TODO
-                    pass
+                if len(learned_from_destination) > 0 and ip in copy_message['distances'].keys():
+                    to_remove.append(ip)
+            for ip in to_remove:
+                copy_message['distances'].pop(ip)
 
-        # TODO remove test
-        connection.sendto(json.dumps(self.neighbors[0]).encode(), ('127.0.1.2', 55151))
-        connection.sendto(json.dumps(self.neighbors[1]).encode(), ('127.0.1.3', 55151))
+            # all routers have the same port
+            connection.sendto(json.dumps(copy_message).encode(), (neighbor['ip'], self.port))
 
     def get_routing_table(self):
         # get the best options of routes for each IP
@@ -199,10 +198,15 @@ def receive_data(connection):
 
         if data['type'] == 'update':
             router.receive_table_info(data)
+
             # TODO remove debug print
-            print('Routing>', router.get_routing_table())
+            r = router.get_routing_table()
+            print('Routing>', r)
             print('History>', router.history)
             print('\n\n')
+            # TODO remove
+            if '127.0.1.3' in r.keys() and len(r['127.0.1.3']) == 3:
+                router.send_table()
         elif data['type'] == 'trace':
             # TODO
             pass
