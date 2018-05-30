@@ -44,6 +44,12 @@ class Router:
         new_neighbor['ip'] = neighbor_ip
         new_neighbor['weight'] = int(neighbor_weight)
         self.neighbors.append(new_neighbor)
+        new_route = dict()
+        new_route['ip'] = new_neighbor['ip']
+        new_route['distance'] = new_neighbor['weight']
+        new_route['next'] = new_neighbor['ip']
+        new_route['ttl'] = 4
+        self.history.append(new_route)
 
     def remove_neighbor(self, neighbor_ip):
         # usar o histórico para definir nova rota
