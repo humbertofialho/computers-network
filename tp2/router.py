@@ -175,6 +175,17 @@ class Router:
             self.history_version = 0
             self.update_routing_table()
 
+    def receive_trace(self, message):
+        # first of all, add this IP to hops
+        message['hops'].append(self.ip)
+
+        if message['destination'] != self.ip:
+            # this isn't the final destination, send to next hop with load balance
+            self.send_message(message)
+        else:
+            # this is the final destination, respond with the trace result
+            self.send_data(message['source'], json.dumps(message))
+
     def send_trace(self, final_ip):
         trace_message = dict()
         trace_message['type'] = 'trace'
@@ -185,9 +196,15 @@ class Router:
         # send message with load balance
         self.send_message(trace_message)
 
-    def send_data(self):
-        # TODO
-        pass
+    def send_data(self, destination, payload):
+        data_message = dict()
+        data_message['type'] = 'data'
+        data_message['source'] = self.ip
+        data_message['destination'] = destination
+        data_message['payload'] = payload
+
+        # send message with load balance
+        self.send_message(data_message)
 
     def send_message(self, message):
         routing_table = self.get_routing_table()
@@ -273,8 +290,7 @@ def receive_data(connection):
             print('History>', router.history)
             print('\n\n')
         elif data['type'] == 'trace':
-            # TODO
-            pass
+            router.receive_trace(data)
         elif data['type'] == 'data':
             # TODO
             # TODO ponto extra: avisar origem se não tem rota
