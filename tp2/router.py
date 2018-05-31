@@ -12,13 +12,14 @@
 # se passa parametro com flag, todos tem flag também?
 # ctrl+c com stack trace pode atrapalhar?
 # se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
-# reenviar assim que atualizar?
+# reenviar para vizinhos assim que mudar algo?
 
 import sys
 import json
 import copy
 import threading
 import socket as sck
+from random import randint
 
 MAX_PAYLOAD_SIZE = 65536
 MAX_HISTORY_VERSION = 10000
@@ -174,6 +175,33 @@ class Router:
             self.history_version = 0
             self.update_routing_table()
 
+    def send_trace(self, final_ip):
+        trace_message = dict()
+        trace_message['type'] = 'trace'
+        trace_message['source'] = self.ip
+        trace_message['destination'] = final_ip
+        trace_message['hops'] = [self.ip]
+
+        # send message with load balance
+        self.send_message(trace_message)
+
+    def send_data(self):
+        # TODO
+        pass
+
+    def send_message(self, message):
+        routing_table = self.get_routing_table()
+
+        if message['destination'] in routing_table.keys():
+            # select one of the best options for load balancing
+            options = routing_table[message['destination']]
+            selected_option = randint(0, len(options) - 1)
+            selected_hop = options[selected_option]['next']
+
+            connection = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
+            # all routers have the same port
+            connection.sendto(json.dumps(message).encode(), (selected_hop, self.port))
+
 
 router = None
 
@@ -227,8 +255,7 @@ def read_command(read_line):
         # TODO update routing from history
         pass
     elif read_line[0] == 'trace':
-        # TODO
-        pass
+        router.send_trace(read_line[1])
 
 
 def receive_data(connection):
