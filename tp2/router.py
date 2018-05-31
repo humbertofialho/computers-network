@@ -20,10 +20,8 @@ import copy
 import threading
 import socket as sck
 
-# TODO remove
-import datetime
-
 MAX_PAYLOAD_SIZE = 65536
+MAX_HISTORY_VERSION = 10000
 
 
 # method to call function every 'secs' seconds
@@ -51,6 +49,10 @@ class Router:
         this_routing['next'] = ip
         this_routing['ttl'] = 4
         self.history.append(this_routing)
+        self.history_version = 0
+        self.routing_version = 0
+        self.routing = dict()
+        self.update_routing_table()
 
     def add_neighbor(self, neighbor_ip, neighbor_weight):
         new_neighbor = dict()
@@ -63,6 +65,7 @@ class Router:
         new_route['next'] = new_neighbor['ip']
         new_route['ttl'] = 4
         self.history.append(new_route)
+        self.history_version = self.history_version + 1
 
     def remove_neighbor(self, neighbor_ip):
         # usar o histórico para definir nova rota
@@ -70,9 +73,6 @@ class Router:
         pass
 
     def send_update(self):
-        # TODO remove print debug
-        print('Sending now', datetime.datetime.now())
-
         routing_table = self.get_routing_table()
 
         update_message = dict()
@@ -108,6 +108,13 @@ class Router:
             connection.sendto(json.dumps(copy_message).encode(), (neighbor['ip'], self.port))
 
     def get_routing_table(self):
+        # updating routing on-demand
+        if self.routing_version < self.history_version:
+            # update old routing table
+            self.update_routing_table()
+        return self.routing
+
+    def update_routing_table(self):
         # get the best options of routes for each IP
         # each one can have more than one route with the same distance (load balancing)
         routes_by_ip = dict()
@@ -121,7 +128,8 @@ class Router:
                 # if already exists a route for that IP with that distance, add new option
                 routes_by_ip[ip_key].append(history)
 
-        return routes_by_ip
+        self.routing_version = self.history_version
+        self.routing = routes_by_ip
 
     def subtract_ttl(self, source_ip):
         # subtract TTL from routes learned from source
@@ -159,6 +167,12 @@ class Router:
                 new_history['next'] = table_info['source']
                 new_history['ttl'] = 4
                 self.history.append(new_history)
+
+        # adding history version to update routing on-demand
+        self.history_version = self.history_version + 1
+        if self.history_version > MAX_HISTORY_VERSION:
+            self.history_version = 0
+            self.update_routing_table()
 
 
 router = None
@@ -231,9 +245,6 @@ def receive_data(connection):
             print('Routing>', r)
             print('History>', router.history)
             print('\n\n')
-            # TODO remove
-            if '127.0.1.3' in r.keys() and len(r['127.0.1.3']) == 3:
-                router.send_update()
         elif data['type'] == 'trace':
             # TODO
             pass
