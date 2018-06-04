@@ -13,6 +13,9 @@
 # ctrl+c com stack trace pode atrapalhar?
 # se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
 # reenviar para vizinhos assim que mudar algo?
+# TODO código opcional:
+# log assíncrono em arquivo
+# ponto extra da mensagem de erro
 
 import sys
 import json
@@ -69,10 +72,22 @@ class Router:
         self.history_version = self.history_version + 1
 
     def remove_neighbor(self, neighbor_ip):
-        # usar o histórico para definir nova rota
-        # TODO remove routes learned from neighbor_ip
-        # TODO update history version when remove routes
-        pass
+        to_remove = list(filter(lambda neighbor: neighbor['ip'] == neighbor_ip, self.neighbors))
+        if len(to_remove) > 0:
+            learned_from_neighbor = list(filter(lambda option: option['next'] == neighbor_ip, self.history))
+
+            if len(learned_from_neighbor) > 0:
+                for route in learned_from_neighbor:
+                    self.history.remove(route)
+
+            # update history version
+            self.history_version = self.history_version + 1
+
+            # remove neighbor
+            self.neighbors.remove(to_remove[0])
+
+            # TODO remove debug print
+            print(self.get_routing_table())
 
     def send_update(self):
         routing_table = self.get_routing_table()
@@ -278,8 +293,7 @@ def read_command(read_line):
     if read_line[0] == 'add':
         router.add_neighbor(read_line[1], read_line[2])
     elif read_line[0] == 'del':
-        # TODO update routing from history
-        pass
+        router.remove_neighbor(read_line[1])
     elif read_line[0] == 'trace':
         router.send_trace(read_line[1])
 
@@ -302,8 +316,6 @@ def receive_data(connection):
             router.receive_trace(data)
         elif data['type'] == 'data':
             router.receive_data(data)
-        # TODO remove debug print
-        # TODO async log in file with received data
 
 
 # main: calling functions to receive inputs
