@@ -12,7 +12,7 @@
 # se passa parametro com flag, todos tem flag também?
 # ctrl+c com stack trace pode atrapalhar?
 # se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
-# reenviar para vizinhos assim que mudar algo? assim que adicionar ou remover? assim que alguma rota mudar?
+# reenviar para vizinhos assim que mudar algo?
 # TODO código opcional:
 # log assíncrono em arquivo
 # ponto extra da mensagem de erro
