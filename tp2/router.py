@@ -71,6 +71,7 @@ class Router:
     def remove_neighbor(self, neighbor_ip):
         # usar o histórico para definir nova rota
         # TODO remove routes learned from neighbor_ip
+        # TODO update history version when remove routes
         pass
 
     def send_update(self):
