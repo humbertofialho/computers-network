@@ -86,9 +86,6 @@ class Router:
             # remove neighbor
             self.neighbors.remove(to_remove[0])
 
-            # TODO remove debug print
-            print(self.get_routing_table())
-
     def send_update(self):
         routing_table = self.get_routing_table()
 
@@ -306,12 +303,6 @@ def receive_data(connection):
 
         if data['type'] == 'update':
             router.receive_table_info(data)
-
-            # TODO remove debug print
-            r = router.get_routing_table()
-            print('Routing>', r)
-            print('History>', router.history)
-            print('\n\n')
         elif data['type'] == 'trace':
             router.receive_trace(data)
         elif data['type'] == 'data':
