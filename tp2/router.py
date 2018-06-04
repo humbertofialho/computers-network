@@ -187,6 +187,14 @@ class Router:
             # this is the final destination, respond with the trace result
             self.send_data(message['source'], json.dumps(message))
 
+    def receive_data(self, message):
+        if message['destination'] == self.ip:
+            # print payload if the destination is that router
+            print(message['payload'])
+        else:
+            # send to next hop with load balance
+            self.send_message(message)
+
     def send_trace(self, final_ip):
         trace_message = dict()
         trace_message['type'] = 'trace'
@@ -293,9 +301,7 @@ def receive_data(connection):
         elif data['type'] == 'trace':
             router.receive_trace(data)
         elif data['type'] == 'data':
-            # TODO
-            # TODO ponto extra: avisar origem se não tem rota
-            pass
+            router.receive_data(data)
         # TODO remove debug print
         # TODO async log in file with received data
 

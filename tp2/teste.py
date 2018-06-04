@@ -83,3 +83,17 @@ trace2 = {
     'hops': ['127.0.1.3', '127.0.1.7', '127.0.1.8']
 }
 socket.sendto(json.dumps(trace2).encode(), (IP, PORT))
+data1 = {
+    'type': 'data',
+    'source': '127.0.1.5',
+    'destination': '127.0.1.1',
+    'payload': json.dumps(trace2)
+}
+socket.sendto(json.dumps(data1).encode(), (IP, PORT))
+data2 = {
+    'type': 'data',
+    'source': '127.0.1.5',
+    'destination': '127.0.1.3',
+    'payload': json.dumps(trace2)
+}
+socket.sendto(json.dumps(data2).encode(), (IP, PORT))
