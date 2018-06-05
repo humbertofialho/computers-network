@@ -7,16 +7,6 @@
 # --------------------   Rafael Carneiro de Castro  (2013030210) ------------ #
 # --------------------------------------------------------------------------- #
 
-# TODO DÚVIDAS:
-# algum jeito de ler qualquer tamanho no recv do UDP? qual seria o maximo?
-# se passa parametro com flag, todos tem flag também?
-# ctrl+c com stack trace pode atrapalhar?
-# se TTL igual a zero, tem que pegar do histórico também? ou seja, recuperação também é em TTL igual a zero? ou só DEL?
-# reenviar para vizinhos assim que mudar algo? assim que adicionar ou remover? assim que alguma rota mudar?
-# TODO código opcional:
-# log assíncrono em arquivo
-# ponto extra da mensagem de erro
-
 import sys
 import json
 import copy
@@ -76,6 +66,7 @@ class Router:
         if len(to_remove) > 0:
             learned_from_neighbor = list(filter(lambda option: option['next'] == neighbor_ip, self.history))
 
+            # remove routes learned from that neighbor
             if len(learned_from_neighbor) > 0:
                 for route in learned_from_neighbor:
                     self.history.remove(route)
