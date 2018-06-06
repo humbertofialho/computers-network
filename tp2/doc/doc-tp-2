@@ -1,0 +1,36 @@
+Neste trabalho será implementado o DCCRIP, um roteador que utiliza o roteamento por vetor de distância. O DCCRIP tem suporte a pesos de enlace, balanceamento de carga, medição de rotas e outras funcionalidades. A linguagem utilizada para o desenvolvimento do trabalho foi o Python.
+
+Estrutura de Dados:
+Para a implementação do roteador, uma classe chamada Router foi criada. Ela contem o IP do roteador, porta de operação, período de envio da mensagem de atualização de rotas, tabela de histórico de rotas, tabela de roteamento, tabela de nós vizinhos, e os métodos relevantes à operação. Uma importante decisão tomada para a implementação foi no que diz respeito à manutenção das tabelas de histórico e de roteamento. Como será discutido mais para frente, a tabela de histórico é importante para o Reroteamento Imediato. Contudo o código ficaria muito complexo e ilegível caso as duas tabelas recebessem a manutenção necessária a cada entrada de novas rotas, considerando os diversos casos possíveis das rotas vindo dos nós vizinhos. Sendo assim, optou-se por tornar a tabela de histórico a tabela central de funcionamento do roteador. Ela contém todas as informações de rotas recebidas pelos vizinhos, sendo elas as melhores rotas ou não. Sempre que existe uma mudança de peso de uma rota para dado destino através de um vizinho, esta informação é atualizada na linha correspondente da tabela, de forma que ela vai ter as distâncias atualizadas aos destinos a partir do vizinho correspondente. A tabela de roteamento é então construída sob demanda. Sempre que ela é solicitada por algum método, existe um processamento na tabela de roteamento que vai extrair as melhores rotas para cada destino, como se pode ver a seguir.
+[código do update_routing_table]
+
+No código, todas as entradas da tabela de histórico são percorridas. Caso o destino da entrada atual possa ser alcançado por uma distância menor à que já está registrada na tabela de roteamento, a entrada da tabela de roteamento é substituída por esta. Caso ainda não exista uma rota para aquele destino registrada na tabela de roteamento, a atual é registrda. Caso a entrada atual possua mesma distância das já registradas na tabela de roteamento, ela é adicionada como mais uma opção de rota com aquela distância ótima, comportamento importante para o Balanceamento de Cargas, como será discutido mais a frente. Para facilitar a lógica deste processamento, optou-se por implementar a tabela de roteamento como um dicionário, onde a chave é o nó de destino, e o valor é um vetor das opções possível com mesma distância para este destino. Esta decisão também torna mais simples a escolha de uma rota para um destino.
+
+O inconveniente desta abordagem de atualização sob demanda é que o processamento de construção da tabela de roteamento a partir do histórico aconteceria sempre que se precisasse consultar a tabela de roteamento. Como medida paleativa, tanto a tabela de histórico quanto a de roteamente têm um inteiro de controle de versão. Assim, sempre que a tabela de roteamento for solicitada, a versão dela é comparada à versão do histórico. Caso sejam iguais, retorna-se apenas a tabela de roteamento que está em memória. Caso a versão da tabela de roteamento seja menor do que a da tabela de histórico, é preciso atualizá-la, com o resultado da atualização sendo guardado em memória. Para garantir tal comportamento, a tabela de roteamento apenas deve ser acessada pelo método get_routing_table para que tais comportamentos sejam garantidos, como se pode ver no código a seguir. Sempre que um novo registro é adicionado, modificado ou removido da tabela de histórico, sua versão deve ser somada.
+[código do get_routing_table]
+
+
+Atualizações Periódicas:
+Para o correto funcionamento do algoritmo de roteamento, o nó precisa mandar para seus vizinhos periodicamente as distâncias que ele conhece para cada destino, ou seja, mandar a mensagem de update. O período deste envio é passado por parâmetro quando se inicia a aplicação para um nó. Para chamar o método de envio da mensagem de update, um método auxiliar foi criado, como se pode ver a seguir.
+[código do set_interval]
+Este método chama a função passada por parâmetro no período também passado por parâmetro, repetidamente. Como este método se utiliza de mecanismos de thread do Python, o envio da mensagem de update ocorrerá paralelamente a qualquer outra operação executada pelo código, garantido que seja enviada sempre no tempo especificado. A construção da mensagem de update será vista na sessão Split Horizon.
+
+
+Split Horizon:
+O Split Horizon é uma lógica de contingência que pode ser implementada para se evitar que mensagens de update fiquem circulando na rede em loops infinitos. Para tanto, quando se envia uma mensagem de update para um nó viznho, não se deve enviar a distância conhecida para este próprio nó vizinho, nem as distâncias aprendidas por este nó vizinho, ou seja, as distâncias das rotas que passarão por ele. Para garantir este comportamento, o seguinte método foi implementado na classe Router:
+[código do send_update]
+O método percorre todas as entradas da tabela de roteamento, colocando as distâncias para todos os destinos conhecidos. Para cada vizinho, primeiro se exclui da mensagem a rota para o próprio vizinho, e em seguida se exclui as rotas aprendidas deste vizinho. Por útlimo, a mensagem é enviada. Este método é chamado periodicamente no momento que o router é iniciado, com o auxílio do método set_interval apresentado na sessão anterior.
+
+
+Balanceamento de Carga:
+Pela estrutura de dados utilizada para a tabela de roteamento, para cada IP de destino tem-se um vetor de opções de rota de mesma distância. Um número aleatório entre 0 e número de opções - 1 é gerado, e a opção correspondente a este número é utilizada para o envio da mensagem. O código com tal lógica pode ser visto a seguir.
+[código do send_message]
+
+
+Reroteamento Imediato:
+Pela estrutura de tabela de roteamento e tabela de histórico criada, o reroteamento se torna bem simples. Basta somar a versão da tabela de histórico quando uma ou mais entradas dela são removidas, o que pode acontecer quando a conexão com nós vizinhos é perdida. Como a versão da tabela de histórico agora é maior, a tabela de rotemanto será atualizada quando for solicitada, conforme visto na sessão Estrutura de Dados.
+
+
+Remoção de Rotas Desatualizadas:
+As rotas desatualizadas são controladas pelo TTL (time to live) que cada rota possui. Conforme a especificação, o tempo de vida máximo de uma rota é igual a 4 vezes o período de atualização. Ou seja, quando um roteador recebe uma mensagem de atualização de um vizinho, ele pode primeiramente subtrair o TTL de todas as rotas aprendidas daquele vizinho, e todas as rotas que tem TTL igual a zero são removidas. Em seguida as rotas são atualizadas pela mensagem que chegou do vizinho, e o TTL de todas estas recebidas é colocado em 4, já que pela mensagem recebe-se a confirmação da existência daquela rota. O código de subtração do TTL das rotas aprendidas de um vizinho, junto com a remoção das rotas com TTL igual a zero pode ser visto a seguir.
+[código do subtract_ttl]
