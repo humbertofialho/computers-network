@@ -137,13 +137,17 @@ class Router:
         self.routing = routes_by_ip
 
     def subtract_ttl(self, source_ip):
+        to_remove = []
         # subtract TTL from routes learned from source
         for route in self.history:
             if route['next'] == source_ip:
                 route['ttl'] = route['ttl'] - 1
                 if route['ttl'] == 0:
-                    # remove routes with TTL equals to 0
-                    self.history.remove(route)
+                    to_remove.append(route)
+
+        # remove routes with TTL equals to 0
+        for zero_ttl in to_remove:
+            self.history.remove(zero_ttl)
 
     def receive_table_info(self, table_info):
         # find neighbor who sent that information
