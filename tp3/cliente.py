@@ -8,6 +8,7 @@
 # --------------------------------------------------------------------------- #
 
 import sys
+import select
 import socket as sck
 
 
@@ -20,9 +21,25 @@ def main():
 
         # TODO remover
         print(local_port, server_port, server_ip)
+
         socket = sck.socket(sck.AF_INET, sck.SOCK_DGRAM)
+        socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
         socket.bind(('127.0.0.1', local_port))
-        socket.sendto('Mensgem do cliente'.encode(), (server_ip, server_port))
+
+        while True:
+            reads, _, _ = select.select([sys.stdin, socket], [], [])
+            for read in reads:
+                # message from server
+                if read == socket:
+                    data = read.recv(1024)
+                    if data:
+                        # prints the message received
+                        print('New message: ' + data.decode())
+
+                # message from terminal
+                else:
+                    message = sys.stdin.readline()
+                    socket.sendto(message.encode(), (server_ip, server_port))
 
     return
 

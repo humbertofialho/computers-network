@@ -35,6 +35,7 @@ def start_server(ip, port):
         # TODO remover
         print('RECEIVED MESSAGE>', message)
         print('Address:', address)
+        socket.sendto('Teste do servidor para o cliente'.encode(), address)
 
 
 # main: calling functions to receive inputs
