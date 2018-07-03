@@ -7,6 +7,7 @@
 # --------------------   Rafael Carneiro de Castro  (2013030210) ------------ #
 # --------------------------------------------------------------------------- #
 
+import re
 import sys
 import socket as sck
 
@@ -31,9 +32,11 @@ def start_server(ip, port):
     while True:
         message, address = socket.recvfrom(500)
         message = message.decode()
+        tags = list(set(re.findall('(?:#)(\w+)', message)))
 
         # TODO remover
         print('RECEIVED MESSAGE>', message)
+        print(tags)
         print('Address:', address)
         socket.sendto('Teste do servidor para o cliente'.encode(), address)
 
